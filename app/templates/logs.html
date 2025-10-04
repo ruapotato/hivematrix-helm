@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">System Logs</h1>
+                <a href="/" class="btn btn--small">
+                    <span class="btn__label">← Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Filters</h2>
+            </div>
+            <div class="card__body">
+                <form method="get" action="/logs">
+                    <div class="form-group">
+                        <label for="service">Service:</label>
+                        <select name="service" id="service">
+                            <option value="">All Services</option>
+                            {% for service_name in services.keys() %}
+                                <option value="{{ service_name }}" {% if service_name == selected_service %}selected{% endif %}>
+                                    {{ service_name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="level">Level:</label>
+                        <select name="level" id="level">
+                            <option value="">All Levels</option>
+                            <option value="DEBUG" {% if selected_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                            <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
+                            <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                            <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                            <option value="CRITICAL" {% if selected_level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn--primary">
+                        <span class="btn__label">Apply Filters</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Log Entries</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Service</th>
+                            <th>Level</th>
+                            <th>Message</th>
+                            <th>User</th>
+                            <th>Trace ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr class="log-row log-row--{{ log.level.lower() }}">
+                            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <a href="/service/{{ log.service_name }}">{{ log.service_name }}</a>
+                            </td>
+                            <td>
+                                <span class="badge badge--{{ 'danger' if log.level in ['ERROR', 'CRITICAL'] else 'warning' if log.level == 'WARNING' else 'info' }}">
+                                    {{ log.level }}
+                                </span>
+                            </td>
+                            <td>{{ log.message[:300] }}{% if log.message|length > 300 %}...{% endif %}</td>
+                            <td>{{ log.user_id or '-' }}</td>
+                            <td>{{ log.trace_id or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if not logs %}
+                <p>No logs found matching your criteria.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

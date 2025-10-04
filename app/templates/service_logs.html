@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ service_name }} Logs - HiveMatrix Helm</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        .log-container {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .log-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .log-type-selector {
+            margin: 1rem 0;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .log-type-selector a {
+            padding: 0.5rem 1rem;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
+        .log-type-selector a.active {
+            background: var(--primary-color, #4CAF50);
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .back-link {
+            color: var(--primary-color, #4CAF50);
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="log-header">
+            <h1>{{ service_name }} - Process Logs</h1>
+            <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;" class="back-link">← Back to Service</a>
+        </div>
+
+        <div class="card">
+            <div class="card__content">
+                <p><strong>Status:</strong> <span class="status-badge status-badge--{{ status.status }}">{{ status.status }}</span></p>
+                <p><strong>Health:</strong> <span class="status-badge status-badge--{{ status.health }}">{{ status.health }}</span></p>
+                {% if status.pid %}
+                <p><strong>PID:</strong> {{ status.pid }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="log-type-selector">
+            <strong>View:</strong>
+            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=both&lines={{ lines }}'); return false;"
+               class="{% if log_type == 'both' %}active{% endif %}">Both</a>
+            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stdout&lines={{ lines }}'); return false;"
+               class="{% if log_type == 'stdout' %}active{% endif %}">Stdout</a>
+            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stderr&lines={{ lines }}'); return false;"
+               class="{% if log_type == 'stderr' %}active{% endif %}">Stderr</a>
+            <span style="margin-left: auto;">
+                <a href="#" onclick="window.location.reload(); return false;">🔄 Refresh</a>
+            </span>
+        </div>
+
+        {% if logs.get('stderr') and (log_type == 'stderr' or log_type == 'both') %}
+        <div class="card">
+            <h3 style="margin-top: 0;">Standard Error (stderr)</h3>
+            <div class="log-container">
+                <div class="log-content">{{ logs.stderr }}</div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if logs.get('stdout') and (log_type == 'stdout' or log_type == 'both') %}
+        <div class="card">
+            <h3 style="margin-top: 0;">Standard Output (stdout)</h3>
+            <div class="log-container">
+                <div class="log-content">{{ logs.stdout }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+#!/bin/bash
+#
+# Configure Keycloak for HiveMatrix
+# Automatically creates realm, client, and admin user
+#
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+KEYCLOAK_URL="http://localhost:8080"
+ADMIN_USER="admin"
+ADMIN_PASS="admin"
+
+# HiveMatrix user to create
+HIVEMATRIX_USER="admin"
+HIVEMATRIX_PASS="admin"
+HIVEMATRIX_EMAIL="admin@hivematrix.local"
+
+echo ""
+echo "================================================================"
+echo "  HiveMatrix Keycloak Configuration"
+echo "================================================================"
+echo ""
+
+# Get admin access token
+echo "Authenticating with Keycloak..."
+TOKEN_RESPONSE=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=$ADMIN_USER" \
+  -d "password=$ADMIN_PASS" \
+  -d "grant_type=password" \
+  -d "client_id=admin-cli")
+
+ACCESS_TOKEN=$(echo $TOKEN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+
+if [ -z "$ACCESS_TOKEN" ]; then
+    echo -e "${RED}✗ Failed to authenticate with Keycloak${NC}"
+    echo "Make sure Keycloak is running and admin credentials are correct"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Authenticated${NC}"
+
+# Create hivematrix realm
+echo ""
+echo "Creating hivematrix realm..."
+REALM_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" -X GET "$KEYCLOAK_URL/admin/realms/hivematrix" \
+  -H "Authorization: Bearer $ACCESS_TOKEN")
+
+if [ "$REALM_EXISTS" = "200" ]; then
+    echo -e "${BLUE}  Realm already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "realm": "hivematrix",
+        "enabled": true,
+        "displayName": "HiveMatrix",
+        "loginTheme": "keycloak"
+      }'
+    echo -e "${GREEN}✓ Realm created${NC}"
+fi
+
+# Create core-client
+echo ""
+echo "Creating core-client..."
+CLIENT_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients?clientId=core-client" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "core-client" || true)
+
+if [ -n "$CLIENT_EXISTS" ]; then
+    echo -e "${BLUE}  Client already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/clients" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "clientId": "core-client",
+        "name": "HiveMatrix Core Service",
+        "enabled": true,
+        "protocol": "openid-connect",
+        "publicClient": false,
+        "standardFlowEnabled": true,
+        "directAccessGrantsEnabled": false,
+        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth"],
+        "webOrigins": ["+"]
+      }'
+    echo -e "${GREEN}✓ Client created${NC}"
+fi
+
+# Get client secret
+echo ""
+echo "Retrieving client secret..."
+CLIENT_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients?clientId=core-client" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+CLIENT_SECRET=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients/$CLIENT_ID/client-secret" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"value":"[^"]*' | cut -d'"' -f4)
+
+echo -e "${GREEN}✓ Client secret: $CLIENT_SECRET${NC}"
+
+# Update Core's .flaskenv with client secret
+echo ""
+echo "Updating Core service configuration..."
+CORE_FLASKENV="/home/david/work/hivematrix-core/.flaskenv"
+
+if [ -f "$CORE_FLASKENV" ]; then
+    # Update or add KEYCLOAK_CLIENT_SECRET
+    if grep -q "KEYCLOAK_CLIENT_SECRET" "$CORE_FLASKENV"; then
+        sed -i "s/KEYCLOAK_CLIENT_SECRET=.*/KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'/" "$CORE_FLASKENV"
+    else
+        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
+    fi
+    echo -e "${GREEN}✓ Core .flaskenv updated${NC}"
+else
+    echo -e "${YELLOW}⚠ Core .flaskenv not found, skipping${NC}"
+fi
+
+# Create admins group
+echo ""
+echo "Creating admins group..."
+GROUP_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=admins" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "admins" || true)
+
+if [ -n "$GROUP_EXISTS" ]; then
+    echo -e "${BLUE}  Group already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/groups" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "admins"}'
+    echo -e "${GREEN}✓ Group created${NC}"
+fi
+
+GROUP_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=admins" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+# Add group mapper to client
+echo ""
+echo "Configuring group mapper..."
+MAPPER_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients/$CLIENT_ID/protocol-mappers/models" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"name":"groups"' || true)
+
+if [ -n "$MAPPER_EXISTS" ]; then
+    echo -e "${BLUE}  Mapper already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/clients/$CLIENT_ID/protocol-mappers/models" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "groups",
+        "protocol": "openid-connect",
+        "protocolMapper": "oidc-group-membership-mapper",
+        "config": {
+          "full.path": "false",
+          "id.token.claim": "true",
+          "access.token.claim": "true",
+          "claim.name": "groups",
+          "userinfo.token.claim": "true"
+        }
+      }'
+    echo -e "${GREEN}✓ Mapper configured${NC}"
+fi
+
+# Create HiveMatrix admin user
+echo ""
+echo "Creating HiveMatrix admin user..."
+USER_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/users?username=$HIVEMATRIX_USER" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "\"username\":\"$HIVEMATRIX_USER\"" || true)
+
+if [ -n "$USER_EXISTS" ]; then
+    echo -e "${BLUE}  User already exists${NC}"
+    USER_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/users?username=$HIVEMATRIX_USER" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/users" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{
+        \"username\": \"$HIVEMATRIX_USER\",
+        \"email\": \"$HIVEMATRIX_EMAIL\",
+        \"enabled\": true,
+        \"emailVerified\": true
+      }"
+
+    USER_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/users?username=$HIVEMATRIX_USER" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+    echo -e "${GREEN}✓ User created${NC}"
+fi
+
+# Set user password
+echo ""
+echo "Setting user password..."
+curl -s -X PUT "$KEYCLOAK_URL/admin/realms/hivematrix/users/$USER_ID/reset-password" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"type\": \"password\",
+    \"value\": \"$HIVEMATRIX_PASS\",
+    \"temporary\": false
+  }"
+echo -e "${GREEN}✓ Password set${NC}"
+
+# Add user to admins group
+echo ""
+echo "Adding user to admins group..."
+curl -s -X PUT "$KEYCLOAK_URL/admin/realms/hivematrix/users/$USER_ID/groups/$GROUP_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+echo -e "${GREEN}✓ User added to admins group${NC}"
+
+echo ""
+echo "================================================================"
+echo -e "${GREEN}  Keycloak Configuration Complete!${NC}"
+echo "================================================================"
+echo ""
+echo "HiveMatrix Realm: hivematrix"
+echo "Admin User:"
+echo "  Username: $HIVEMATRIX_USER"
+echo "  Password: $HIVEMATRIX_PASS"
+echo "  Email: $HIVEMATRIX_EMAIL"
+echo ""
+echo "Client Secret (saved to Core .flaskenv):"
+echo "  $CLIENT_SECRET"
+echo ""
+echo "You can now:"
+echo "  1. Restart Core service: python cli.py restart core"
+echo "  2. Visit: http://localhost:8000"
+echo "  3. Login with: $HIVEMATRIX_USER / $HIVEMATRIX_PASS"
+echo ""
+echo "================================================================"
+echo ""

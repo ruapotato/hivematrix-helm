@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pyenv/
+venv/
+ENV/
+env/
+
+# Flask
+instance/
+.flaskenv
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Keycloak
+keycloak-*/
+keycloak*.zip
+keycloak*.tar.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env

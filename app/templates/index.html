@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helm - HiveMatrix Service Manager</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">HiveMatrix Helm</h1>
+                <p>Service Manager & Monitoring Dashboard</p>
+            </div>
+            <div class="card__body">
+                <p>Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Services Overview</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Status</th>
+                            <th>Health</th>
+                            <th>Port</th>
+                            <th>PID</th>
+                            <th>CPU %</th>
+                            <th>Memory (MB)</th>
+                            <th>Logs (1h)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for service_name, status in statuses.items() %}
+                        <tr>
+                            <td>
+                                <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;">{{ service_name }}</a>
+                            </td>
+                            <td>
+                                <span class="badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                    {{ status.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
+                                    {{ status.health }}
+                                </span>
+                            </td>
+                            <td>{{ status.configured_port or 'N/A' }}</td>
+                            <td>{{ status.pid or '-' }}</td>
+                            <td>{{ "%.1f"|format(status.cpu_percent) if status.cpu_percent else '-' }}</td>
+                            <td>{{ "%.1f"|format(status.memory_mb) if status.memory_mb else '-' }}</td>
+                            <td>
+                                {% set stats = log_stats.get(service_name, {}) %}
+                                {% if stats %}
+                                    <span class="log-stats">
+                                        {% if stats.get('ERROR', 0) > 0 %}
+                                            <span class="badge badge--danger">E: {{ stats.get('ERROR', 0) }}</span>
+                                        {% endif %}
+                                        {% if stats.get('WARNING', 0) > 0 %}
+                                            <span class="badge badge--warning">W: {{ stats.get('WARNING', 0) }}</span>
+                                        {% endif %}
+                                        {% if stats.get('INFO', 0) > 0 %}
+                                            <span class="badge badge--info">I: {{ stats.get('INFO', 0) }}</span>
+                                        {% endif %}
+                                    </span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.permission_level == 'admin' %}
+                                    {% if status.status == 'running' %}
+                                        <button class="btn btn--small btn--danger" onclick="controlService('{{ service_name }}', 'stop')">
+                                            <span class="btn__label">Stop</span>
+                                        </button>
+                                        <button class="btn btn--small" onclick="controlService('{{ service_name }}', 'restart')">
+                                            <span class="btn__label">Restart</span>
+                                        </button>
+                                    {% else %}
+                                        <button class="btn btn--small btn--primary" onclick="controlService('{{ service_name }}', 'start')">
+                                            <span class="btn__label">Start</span>
+                                        </button>
+                                    {% endif %}
+                                {% else %}
+                                    <em>Admin only</em>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Quick Links</h2>
+            </div>
+            <div class="card__body">
+                <a href="#" onclick="navigateTo('/logs'); return false;" class="btn btn--primary">
+                    <span class="btn__label">View All Logs</span>
+                </a>
+                <a href="#" onclick="navigateTo('/metrics'); return false;" class="btn btn--primary">
+                    <span class="btn__label">View Metrics</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get the base path (in case we're behind a proxy like Nexus)
+        function getBasePath() {
+            // If we're at /helm/, use that as base, otherwise use root
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        function controlService(serviceName, action) {
+            if (!confirm(`Are you sure you want to ${action} ${serviceName}?`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+            fetch(`${basePath}/api/services/${serviceName}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getAuthToken()
+                },
+                body: JSON.stringify({ mode: 'development' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || 'Action completed');
+                location.reload();
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        }
+
+        function getAuthToken() {
+            // This would normally come from the session or cookie
+            // For now, we assume Nexus handles auth via session
+            return '';
+        }
+
+        // Auto-refresh every 10 seconds
+        setTimeout(() => location.reload(), 10000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "keycloak": {
+    "url": "http://localhost:8080",
+    "port": 8080,
+    "description": "Authentication and Identity Management",
+    "internal": true
+  },
+  "core": {
+    "url": "http://localhost:5000",
+    "port": 5000,
+    "description": "Core Identity and Access Management",
+    "internal": true
+  },
+  "nexus": {
+    "url": "http://localhost:8000",
+    "port": 8000,
+    "description": "API Gateway and Service Proxy",
+    "internal": true
+  },
+  "helm": {
+    "url": "http://localhost:5004",
+    "port": 5004,
+    "description": "Service Orchestration and Monitoring",
+    "visible": true
+  },
+  "codex": {
+    "url": "http://localhost:5010",
+    "port": 5010,
+    "description": "Central Data Hub",
+    "visible": true
+  },
+  "ledger": {
+    "url": "http://localhost:5030",
+    "port": 5030,
+    "description": "Billing and Usage Tracking",
+    "visible": true
+  },
+  "knowledgetree": {
+    "url": "http://localhost:5020",
+    "port": 5020,
+    "description": "Knowledge Management",
+    "visible": true
+  }
+}

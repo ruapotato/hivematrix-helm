@@ -1,0 +1,51 @@
+{
+  "keycloak": {
+    "url": "http://localhost:8080",
+    "path": "../keycloak-26.0.5",
+    "port": 8080,
+    "start_command": "bin/kc.sh start-dev",
+    "type": "keycloak"
+  },
+  "core": {
+    "url": "http://localhost:5000",
+    "path": "../hivematrix-core",
+    "port": 5000,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  },
+  "codex": {
+    "url": "http://localhost:5010",
+    "path": "../hivematrix-codex",
+    "port": 5010,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  },
+  "ledger": {
+    "url": "http://localhost:5030",
+    "path": "../hivematrix-ledger",
+    "port": 5030,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  },
+  "knowledgetree": {
+    "url": "http://localhost:5020",
+    "path": "../hivematrix-knowledgetree",
+    "port": 5020,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  },
+  "nexus": {
+    "url": "http://localhost:8000",
+    "path": "../hivematrix-nexus",
+    "port": 8000,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  },
+  "template": {
+    "url": "http://localhost:5001",
+    "path": "../hivematrix-template",
+    "port": 5001,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py"
+  }
+}

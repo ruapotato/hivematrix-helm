@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics - Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">Performance Metrics</h1>
+                <a href="/" class="btn btn--small">
+                    <span class="btn__label">← Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Service Resource Usage</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Status</th>
+                            <th>CPU %</th>
+                            <th>Memory (MB)</th>
+                            <th>Uptime</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for service_name, status in statuses.items() %}
+                        <tr>
+                            <td>
+                                <a href="/service/{{ service_name }}">{{ service_name }}</a>
+                            </td>
+                            <td>
+                                <span class="badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                    {{ status.status }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if status.cpu_percent is not none %}
+                                    {{ "%.2f"|format(status.cpu_percent) }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if status.memory_mb is not none %}
+                                    {{ "%.1f"|format(status.memory_mb) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if status.started_at %}
+                                    {{ status.started_at }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">System Information</h2>
+            </div>
+            <div class="card__body">
+                <p><em>Historical metrics and charts would go here.</em></p>
+                <p>Use the API endpoint <code>/api/metrics/&lt;service_name&gt;</code> to retrieve time-series data.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh every 5 seconds
+        setTimeout(() => location.reload(), 5000);
+    </script>
+</body>
+</html>

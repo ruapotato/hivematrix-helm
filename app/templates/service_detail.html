@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ service_name }} - Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">{{ service_name }}</h1>
+                <a href="/" class="btn btn--small">
+                    <span class="btn__label">← Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Service Status</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <tr>
+                        <th>Status</th>
+                        <td>
+                            <span class="badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                {{ status.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Health</th>
+                        <td>
+                            <span class="badge badge--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
+                                {{ status.health }}
+                            </span>
+                            {% if status.health_message %}
+                                - {{ status.health_message }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>URL</th>
+                        <td><a href="{{ status.configured_url }}" target="_blank">{{ status.configured_url }}</a></td>
+                    </tr>
+                    <tr>
+                        <th>Port</th>
+                        <td>{{ status.configured_port }}</td>
+                    </tr>
+                    <tr>
+                        <th>Process ID</th>
+                        <td>{{ status.pid or 'N/A' }}</td>
+                    </tr>
+                    {% if status.started_at %}
+                    <tr>
+                        <th>Started At</th>
+                        <td>{{ status.started_at }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if status.cpu_percent %}
+                    <tr>
+                        <th>CPU Usage</th>
+                        <td>{{ "%.1f"|format(status.cpu_percent) }}%</td>
+                    </tr>
+                    {% endif %}
+                    {% if status.memory_mb %}
+                    <tr>
+                        <th>Memory Usage</th>
+                        <td>{{ "%.1f"|format(status.memory_mb) }} MB</td>
+                    </tr>
+                    {% endif %}
+                </table>
+
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs'); return false;" class="btn">
+                        <span class="btn__label">View Process Logs (stdout/stderr)</span>
+                    </a>
+
+                    {% if user.permission_level == 'admin' %}
+                        {% if status.status == 'running' %}
+                            <button class="btn btn--danger" onclick="controlService('{{ service_name }}', 'stop')">
+                                <span class="btn__label">Stop Service</span>
+                            </button>
+                            <button class="btn" onclick="controlService('{{ service_name }}', 'restart')">
+                                <span class="btn__label">Restart Service</span>
+                            </button>
+                        {% else %}
+                            <button class="btn btn--primary" onclick="controlService('{{ service_name }}', 'start')">
+                                <span class="btn__label">Start Service</span>
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Recent Logs (50 most recent)</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Level</th>
+                            <th>Message</th>
+                            <th>Trace ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr class="log-row log-row--{{ log.level.lower() }}">
+                            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>
+                                <span class="badge badge--{{ 'danger' if log.level == 'ERROR' or log.level == 'CRITICAL' else 'warning' if log.level == 'WARNING' else 'info' }}">
+                                    {{ log.level }}
+                                </span>
+                            </td>
+                            <td>{{ log.message[:200] }}{% if log.message|length > 200 %}...{% endif %}</td>
+                            <td>{{ log.trace_id or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if not logs %}
+                <p>No logs found for this service.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        function controlService(serviceName, action) {
+            if (!confirm(`Are you sure you want to ${action} ${serviceName}?`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+            fetch(`${basePath}/api/services/${serviceName}/${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + getAuthToken()
+                },
+                body: JSON.stringify({ mode: 'development' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || 'Action completed');
+                location.reload();
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        }
+
+        function getAuthToken() {
+            return '';
+        }
+    </script>
+</body>
+</html>
