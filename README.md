@@ -32,7 +32,7 @@ Helm is the operational control center for the HiveMatrix ecosystem. It provides
 Get the entire HiveMatrix ecosystem running in 3 commands:
 
 ```bash
-cd /home/david/work/hivematrix-helm
+cd hivematrix-helm
 
 # 1. Setup Keycloak (downloads, installs, configures)
 ./setup_keycloak.sh
@@ -255,8 +255,8 @@ Run the automated Keycloak setup:
 ```
 
 This will:
-- Download Keycloak 26.0.5
-- Extract it to `/home/david/work/keycloak-26.0.5/`
+- Download Keycloak 26.4.0
+- Extract it to the parent directory (alongside hivematrix-helm)
 - Update Helm's configuration
 - Start Keycloak with admin credentials (admin/admin)
 
@@ -344,7 +344,7 @@ HiveMatrix Helm manages all services including Keycloak.
 Use the unified startup script:
 
 ```bash
-cd /home/david/work/hivematrix-helm
+cd hivematrix-helm
 ./start.sh
 ```
 
@@ -378,7 +378,7 @@ If you prefer to start services individually:
 Helm's web interface requires Keycloak, Core, and Nexus to be running. Use the CLI to start them:
 
 ```bash
-cd /home/david/work/hivematrix-helm
+cd hivematrix-helm
 
 # Start Keycloak (shared authentication service)
 python cli.py start keycloak
@@ -421,15 +421,15 @@ You can start services manually instead of using Helm:
 
 ```bash
 # Start Keycloak manually
-cd /home/david/work/keycloak-26.3.5
+cd ../keycloak-26.4.0
 export KEYCLOAK_ADMIN=admin
 export KEYCLOAK_ADMIN_PASSWORD=admin
 bin/kc.sh start-dev
 
 # Start other services in separate terminals
-cd ~/work/hivematrix-core && ./start.sh
-cd ~/work/hivematrix-nexus && ./start.sh
-cd ~/work/hivematrix-helm && python run.py
+cd ../hivematrix-core && ./start.sh
+cd ../hivematrix-nexus && ./start.sh
+cd ../hivematrix-helm && python run.py
 ```
 
 ---
@@ -843,7 +843,7 @@ sudo systemctl restart postgresql
 ### Keycloak Issues
 
 **Can't login to Keycloak admin console**
-- Delete data directory: `rm -rf /home/david/work/keycloak-26.0.5/data`
+- Delete data directory in the Keycloak installation (e.g., `rm -rf ../keycloak-26.4.0/data`)
 - Restart Keycloak: `python cli.py restart keycloak`
 - Wait 20 seconds for initialization
 - Login with admin/admin

@@ -31,7 +31,7 @@ class ServiceManager:
         """
         # Path to master config
         helm_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        master_config_path = os.path.join(helm_dir, 'master_services.json')
+        master_config_path = os.path.join(helm_dir, 'services.json')
 
         if not os.path.exists(master_config_path):
             return  # No master config to sync
@@ -382,7 +382,25 @@ class ServiceManager:
             'health': 'unknown'
         }
 
-        if status:
+        # Special case for Helm - detect its own process
+        if service_name == 'helm':
+            port = config.get('port')
+            if port:
+                try:
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        connections = proc.net_connections()
+                        for conn in connections:
+                            if conn.laddr.port == port and conn.status == 'LISTEN':
+                                proc_info = ServiceManager.get_process_info(proc.pid)
+                                if proc_info:
+                                    result.update(proc_info)
+                                    result['status'] = 'running'
+                                    result['pid'] = proc.pid
+                                break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+        elif status:
             result.update(status.to_dict())
 
             # Check if process is actually running

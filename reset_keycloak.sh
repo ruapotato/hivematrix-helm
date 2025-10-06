@@ -3,6 +3,13 @@
 # Reset Keycloak - Clears all data and allows fresh admin setup
 #
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Load Keycloak version from config file
+source "$SCRIPT_DIR/keycloak_version.conf"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -48,7 +55,7 @@ echo ""
 echo "Deleting Keycloak data directory..."
 
 # Delete the data directory
-KEYCLOAK_DATA="/home/david/work/keycloak-26.3.5/data"
+KEYCLOAK_DATA="$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}/data"
 if [ -d "$KEYCLOAK_DATA" ]; then
     rm -rf "$KEYCLOAK_DATA"
     echo -e "${GREEN}✓ Data directory deleted${NC}"
@@ -61,7 +68,7 @@ echo "Starting Keycloak with new admin credentials..."
 echo ""
 
 # Start Keycloak with admin credentials
-cd /home/david/work/keycloak-26.3.5
+cd "$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}"
 
 export KEYCLOAK_ADMIN=admin
 export KEYCLOAK_ADMIN_PASSWORD=admin

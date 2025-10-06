@@ -3,6 +3,10 @@
 # Check if Keycloak is properly configured for HiveMatrix
 #
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
 echo ""
 echo "================================================================"
 echo "  Keycloak Configuration Checker"
@@ -49,7 +53,7 @@ echo ""
 echo "6. Get the client secret:"
 echo "   - Go to Clients → core-client → Credentials tab"
 echo "   - Copy the 'Client secret'"
-echo "   - Add it to /home/david/work/hivematrix-core/.flaskenv"
+echo "   - Add it to $PARENT_DIR/hivematrix-core/.flaskenv"
 echo "     KEYCLOAK_CLIENT_SECRET='<your-secret-here>'"
 echo ""
 echo "7. Create a test user:"
@@ -78,7 +82,7 @@ echo "   - Add to userinfo: ON"
 echo "   - Click Save"
 echo ""
 echo "9. Restart Core service:"
-echo "   cd /home/david/work/hivematrix-helm"
+echo "   cd $SCRIPT_DIR"
 echo "   python cli.py restart core"
 echo ""
 echo "10. Try logging in at:"

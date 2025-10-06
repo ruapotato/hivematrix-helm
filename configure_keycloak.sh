@@ -6,6 +6,10 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -105,21 +109,30 @@ CLIENT_SECRET=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients/$C
 
 echo -e "${GREEN}✓ Client secret: $CLIENT_SECRET${NC}"
 
-# Update Core's .flaskenv with client secret
+# Update master config with client secret
 echo ""
-echo "Updating Core service configuration..."
-CORE_FLASKENV="/home/david/work/hivematrix-core/.flaskenv"
+echo "Updating master configuration..."
+MASTER_CONFIG="instance/configs/master_config.json"
 
-if [ -f "$CORE_FLASKENV" ]; then
-    # Update or add KEYCLOAK_CLIENT_SECRET
-    if grep -q "KEYCLOAK_CLIENT_SECRET" "$CORE_FLASKENV"; then
-        sed -i "s/KEYCLOAK_CLIENT_SECRET=.*/KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'/" "$CORE_FLASKENV"
-    else
-        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
-    fi
-    echo -e "${GREEN}✓ Core .flaskenv updated${NC}"
+if [ -f "$MASTER_CONFIG" ]; then
+    # Use python to update JSON properly
+    python3 <<EOF
+import json
+with open('$MASTER_CONFIG', 'r') as f:
+    config = json.load(f)
+config['keycloak']['client_secret'] = '$CLIENT_SECRET'
+with open('$MASTER_CONFIG', 'w') as f:
+    json.dump(config, f, indent=2)
+EOF
+    echo -e "${GREEN}✓ Master config updated${NC}"
+
+    # Regenerate .flaskenv files for all apps
+    source pyenv/bin/activate
+    python config_manager.py write-dotenv core 2>/dev/null || true
+    python config_manager.py write-dotenv nexus 2>/dev/null || true
+    echo -e "${GREEN}✓ Service configs regenerated${NC}"
 else
-    echo -e "${YELLOW}⚠ Core .flaskenv not found, skipping${NC}"
+    echo -e "${YELLOW}⚠ Master config not found at $MASTER_CONFIG${NC}"
 fi
 
 # Create admins group
@@ -229,10 +242,13 @@ echo ""
 echo "Client Secret (saved to Core .flaskenv):"
 echo "  $CLIENT_SECRET"
 echo ""
-echo "You can now:"
-echo "  1. Restart Core service: python cli.py restart core"
-echo "  2. Visit: http://localhost:8000"
-echo "  3. Login with: $HIVEMATRIX_USER / $HIVEMATRIX_PASS"
+echo "Next step:"
+echo "  Run: ./start.sh"
+echo ""
+echo "This will start all HiveMatrix services and you can login at:"
+echo "  http://localhost:8000"
+echo "  Username: $HIVEMATRIX_USER"
+echo "  Password: $HIVEMATRIX_PASS"
 echo ""
 echo "================================================================"
 echo ""

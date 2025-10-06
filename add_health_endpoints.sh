@@ -3,6 +3,10 @@
 # Add health endpoints to all HiveMatrix services
 #
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -16,7 +20,7 @@ echo ""
 SERVICES=("hivematrix-codex" "hivematrix-ledger" "hivematrix-knowledgetree")
 
 for SERVICE in "${SERVICES[@]}"; do
-    SERVICE_PATH="/home/david/work/$SERVICE"
+    SERVICE_PATH="$PARENT_DIR/$SERVICE"
 
     if [ ! -d "$SERVICE_PATH" ]; then
         echo -e "${YELLOW}⚠ $SERVICE not found, skipping${NC}"
@@ -59,7 +63,7 @@ echo ""
 echo "Restarting services to apply changes..."
 echo ""
 
-cd /home/david/work/hivematrix-helm
+cd "$SCRIPT_DIR"
 source pyenv/bin/activate
 
 for SERVICE in "${SERVICES[@]}"; do

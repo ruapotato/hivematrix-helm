@@ -110,10 +110,25 @@ class ConfigManager:
             f"SERVICE_NAME={app_name}",
             f"",
             f"# Keycloak Configuration",
-            f"KEYCLOAK_URL={config['keycloak']['url']}",
+            f"KEYCLOAK_SERVER_URL={config['keycloak']['url']}",
             f"KEYCLOAK_REALM={config['keycloak']['realm']}",
             f"KEYCLOAK_CLIENT_ID={config['keycloak']['client_id']}",
         ]
+
+        # Add client secret if present
+        if 'client_secret' in config['keycloak']:
+            lines.append(f"KEYCLOAK_CLIENT_SECRET='{config['keycloak']['client_secret']}'")
+
+        # Add JWT configuration for Core
+        if app_name == 'core':
+            lines.extend([
+                f"",
+                f"# JWT Configuration",
+                f"JWT_PRIVATE_KEY_FILE=keys/jwt_private.pem",
+                f"JWT_PUBLIC_KEY_FILE=keys/jwt_public.pem",
+                f"JWT_ISSUER=hivematrix-core",
+                f"JWT_ALGORITHM=RS256",
+            ])
 
         # Add database configuration if present
         if 'database' in config:

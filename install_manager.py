@@ -294,27 +294,52 @@ class InstallManager:
         services = {}
 
         # Add Keycloak if installed
-        if (self.parent_dir / "keycloak-26.0.5").exists():
+        # Load version from config file
+        version_file = self.helm_dir / "keycloak_version.conf"
+        keycloak_version = "26.4.0"  # default
+        if version_file.exists():
+            with open(version_file) as f:
+                for line in f:
+                    if line.startswith("KEYCLOAK_VERSION="):
+                        keycloak_version = line.split("=")[1].strip()
+                        break
+
+        if (self.parent_dir / f"keycloak-{keycloak_version}").exists():
             services['keycloak'] = {
                 "url": "http://localhost:8080",
-                "path": "../keycloak-26.0.5",
+                "path": f"../keycloak-{keycloak_version}",
                 "port": 8080,
                 "start_command": "bin/kc.sh start-dev",
                 "type": "keycloak"
             }
+
+        # Add Helm (the orchestration service itself)
+        services['helm'] = {
+            "url": "http://localhost:5004",
+            "path": ".",
+            "port": 5004,
+            "python_bin": "pyenv/bin/python",
+            "run_script": "run.py",
+            "visible": True
+        }
 
         # Add installed apps
         for app_key in installed:
             app_info = self.registry['core_apps'].get(app_key) or \
                       self.registry['default_apps'].get(app_key)
             if app_info:
-                services[app_key] = {
+                service_config = {
                     "url": f"http://localhost:{app_info['port']}",
                     "path": f"../hivematrix-{app_key}",
                     "port": app_info['port'],
                     "python_bin": "pyenv/bin/python",
                     "run_script": "run.py"
                 }
+
+                # Mark all services as visible in the side panel
+                service_config['visible'] = True
+
+                services[app_key] = service_config
 
         # Write services.json
         with open(self.services_json, 'w') as f:
