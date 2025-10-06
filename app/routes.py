@@ -154,3 +154,16 @@ def service_logs(service_name):
         log_type=log_type,
         lines=lines
     )
+
+
+@app.route('/apps')
+@token_required
+def apps_management():
+    """App installation and management page"""
+    if g.is_service_call:
+        return {'error': 'This endpoint is for users only'}, 403
+
+    return render_template(
+        'apps.html',
+        user=g.user
+    )

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Management - HiveMatrix Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">App Management</h1>
+                <p>Install and manage HiveMatrix applications</p>
+            </div>
+        </div>
+
+        <!-- System Dependencies -->
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">System Dependencies</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Dependency</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dependencies-table">
+                        <tr>
+                            <td colspan="3">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Installed Apps -->
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Installed Applications</h2>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>App</th>
+                            <th>Description</th>
+                            <th>Port</th>
+                            <th>Git Status</th>
+                            <th>Branch</th>
+                            <th>Updates</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="installed-apps-table">
+                        <tr>
+                            <td colspan="7">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Available Apps -->
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">Available Applications</h2>
+            </div>
+            <div class="card__body">
+                <div class="tabs">
+                    <button class="tab tab--active" onclick="showTab('core')">Core Apps</button>
+                    <button class="tab" onclick="showTab('default')">Default Apps</button>
+                    <button class="tab" onclick="showTab('custom')">Install from Git</button>
+                </div>
+
+                <!-- Core Apps Tab -->
+                <div id="tab-core" class="tab-content tab-content--active">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>App</th>
+                                <th>Description</th>
+                                <th>Port</th>
+                                <th>Dependencies</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="core-apps-table">
+                            <tr>
+                                <td colspan="6">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Default Apps Tab -->
+                <div id="tab-default" class="tab-content">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>App</th>
+                                <th>Description</th>
+                                <th>Port</th>
+                                <th>Dependencies</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="default-apps-table">
+                            <tr>
+                                <td colspan="6">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Custom Git Install Tab -->
+                <div id="tab-custom" class="tab-content">
+                    <form id="custom-install-form" style="margin-top: 20px;">
+                        <div class="form-group">
+                            <label for="git-url">Git Repository URL:</label>
+                            <input type="text" id="git-url" placeholder="https://github.com/user/repo" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="app-name">App Name (lowercase, no spaces):</label>
+                            <input type="text" id="app-name" placeholder="myapp" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="app-port">Port:</label>
+                            <input type="number" id="app-port" placeholder="5099" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <button type="submit" class="btn btn--primary">Install from Git</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div style="margin: 20px 0; text-align: center;">
+        <a href="#" onclick="navigateTo('/'); return false;" class="btn btn--secondary">← Back to Dashboard</a>
+    </div>
+
+    <script>
+        let availableApps = {};
+        let installedApps = {};
+        let dependencies = {};
+
+        // Load all data on page load
+        window.onload = function() {
+            loadDependencies();
+            loadInstalledApps();
+            loadAvailableApps();
+        };
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('tab-content--active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('tab--active');
+            });
+
+            // Show selected tab
+            document.getElementById('tab-' + tabName).classList.add('tab-content--active');
+            event.target.classList.add('tab--active');
+        }
+
+        function loadDependencies() {
+            fetchJSON('/api/dependencies/check')
+                .then(data => {
+                    dependencies = data.dependencies;
+                    renderDependencies();
+                })
+                .catch(error => {
+                    console.error('Error loading dependencies:', error);
+                    document.getElementById('dependencies-table').innerHTML =
+                        '<tr><td colspan="3">Error loading dependencies</td></tr>';
+                });
+        }
+
+        function loadInstalledApps() {
+            fetchJSON('/api/apps/installed')
+                .then(data => {
+                    installedApps = data.apps;
+                    renderInstalledApps();
+                })
+                .catch(error => {
+                    console.error('Error loading installed apps:', error);
+                    document.getElementById('installed-apps-table').innerHTML =
+                        '<tr><td colspan="7">Error loading installed apps</td></tr>';
+                });
+        }
+
+        function loadAvailableApps() {
+            fetchJSON('/api/apps/available')
+                .then(data => {
+                    availableApps = data.apps;
+                    renderAvailableApps();
+                })
+                .catch(error => {
+                    console.error('Error loading available apps:', error);
+                });
+        }
+
+        function renderDependencies() {
+            const tbody = document.getElementById('dependencies-table');
+            const rows = [];
+
+            for (const [name, installed] of Object.entries(dependencies)) {
+                const statusBadge = installed ?
+                    '<span class="badge badge--success">Installed</span>' :
+                    '<span class="badge badge--danger">Not Installed</span>';
+
+                const actions = !installed && {{ 'true' if user.permission_level == 'admin' else 'false' }} ?
+                    `<button class="btn btn--small btn--primary" onclick="installDependency('${name}')">Install</button>` :
+                    '-';
+
+                rows.push(`
+                    <tr>
+                        <td><strong>${name}</strong></td>
+                        <td>${statusBadge}</td>
+                        <td>${actions}</td>
+                    </tr>
+                `);
+            }
+
+            tbody.innerHTML = rows.length > 0 ? rows.join('') : '<tr><td colspan="3">No dependencies found</td></tr>';
+        }
+
+        function renderInstalledApps() {
+            const tbody = document.getElementById('installed-apps-table');
+            const rows = [];
+
+            for (const [key, app] of Object.entries(installedApps)) {
+                const gitStatusBadge = app.git_status === 'clean' ?
+                    '<span class="badge badge--success">Clean</span>' :
+                    '<span class="badge badge--warning">Modified</span>';
+
+                const updatesBadge = app.has_updates ?
+                    `<span class="badge badge--warning">${app.commits_behind} commits</span>` :
+                    '<span class="badge badge--success">Up to date</span>';
+
+                const actions = {{ 'true' if user.permission_level == 'admin' else 'false' }} ? `
+                    <button class="btn btn--small btn--primary" onclick="gitPullApp('${key}')">Update</button>
+                    <button class="btn btn--small btn--secondary" onclick="viewAppConfig('${key}')">Config</button>
+                ` : '-';
+
+                rows.push(`
+                    <tr>
+                        <td><strong>${app.name}</strong></td>
+                        <td>${app.description}</td>
+                        <td>${app.port}</td>
+                        <td>${gitStatusBadge}</td>
+                        <td>${app.git_branch || '-'}</td>
+                        <td>${updatesBadge}</td>
+                        <td>${actions}</td>
+                    </tr>
+                `);
+            }
+
+            tbody.innerHTML = rows.length > 0 ? rows.join('') : '<tr><td colspan="7">No apps installed yet</td></tr>';
+        }
+
+        function renderAvailableApps() {
+            const coreRows = [];
+            const defaultRows = [];
+
+            for (const [key, app] of Object.entries(availableApps)) {
+                const statusBadge = app.installed ?
+                    '<span class="badge badge--success">Installed</span>' :
+                    '<span class="badge badge--info">Available</span>';
+
+                const deps = app.dependencies ? app.dependencies.join(', ') : 'None';
+
+                const actions = !app.installed && {{ 'true' if user.permission_level == 'admin' else 'false' }} ?
+                    `<button class="btn btn--small btn--primary" onclick="installApp('${key}')">Install</button>` :
+                    '-';
+
+                const row = `
+                    <tr>
+                        <td><strong>${app.name}</strong></td>
+                        <td>${app.description}</td>
+                        <td>${app.port}</td>
+                        <td>${deps}</td>
+                        <td>${statusBadge}</td>
+                        <td>${actions}</td>
+                    </tr>
+                `;
+
+                if (app.category === 'core') {
+                    coreRows.push(row);
+                } else {
+                    defaultRows.push(row);
+                }
+            }
+
+            document.getElementById('core-apps-table').innerHTML =
+                coreRows.length > 0 ? coreRows.join('') : '<tr><td colspan="6">No core apps found</td></tr>';
+
+            document.getElementById('default-apps-table').innerHTML =
+                defaultRows.length > 0 ? defaultRows.join('') : '<tr><td colspan="6">No default apps found</td></tr>';
+        }
+
+        function installDependency(name) {
+            if (!confirm(`Install ${name}? This may require sudo privileges.`)) return;
+
+            showLoading(`Installing ${name}...`);
+
+            fetchJSON(`/api/dependencies/${name}/install`, { method: 'POST' })
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        loadDependencies();
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    showNotification('Failed to install dependency: ' + error.message, 'error');
+                });
+        }
+
+        function installApp(appKey) {
+            const app = availableApps[appKey];
+            if (!confirm(`Install ${app.name}?`)) return;
+
+            showLoading(`Installing ${app.name}...`);
+
+            fetchJSON(`/api/apps/${appKey}/install`, { method: 'POST' })
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        loadInstalledApps();
+                        loadAvailableApps();
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    showNotification('Failed to install app: ' + error.message, 'error');
+                });
+        }
+
+        function gitPullApp(appKey) {
+            if (!confirm(`Pull latest changes for ${appKey}?`)) return;
+
+            showLoading(`Updating ${appKey}...`);
+
+            fetchJSON(`/api/apps/${appKey}/git/pull`, { method: 'POST' })
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        loadInstalledApps();
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    showNotification('Failed to update app: ' + error.message, 'error');
+                });
+        }
+
+        function viewAppConfig(appKey) {
+            navigateTo(`/apps/${appKey}/config`);
+        }
+
+        // Handle custom git install form
+        document.getElementById('custom-install-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const gitUrl = document.getElementById('git-url').value;
+            const appName = document.getElementById('app-name').value;
+            const appPort = document.getElementById('app-port').value;
+
+            if (!confirm(`Install ${appName} from ${gitUrl}?`)) return;
+
+            showLoading(`Installing ${appName}...`);
+
+            fetchJSON('/api/apps/install-from-git', {
+                method: 'POST',
+                body: JSON.stringify({
+                    git_url: gitUrl,
+                    app_name: appName,
+                    port: parseInt(appPort)
+                })
+            })
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    document.getElementById('custom-install-form').reset();
+                    loadInstalledApps();
+                    loadAvailableApps();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification('Failed to install app: ' + error.message, 'error');
+            });
+        });
+    </script>
+
+    <!-- Include shared styles and scripts -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') if url_for else '/static/css/styles.css' }}">
+    <script src="{{ url_for('static', filename='js/common.js') if url_for else '/static/js/common.js' }}"></script>
+
+    <style>
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #f0f0f0;
+        }
+
+        .tab--active {
+            border-bottom: 3px solid #007bff;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content--active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+    </style>
+</body>
+</html>

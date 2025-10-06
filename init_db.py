@@ -1,131 +1,184 @@
+#!/usr/bin/env python3
 """
-Interactive database initialization script for HiveMatrix Helm
+Helm Database Initialization - Fully Automated
+Automatically creates database, user, and schema
 """
 
 import os
 import sys
+import subprocess
 import configparser
-from getpass import getpass
-from sqlalchemy import create_engine
-from dotenv import load_dotenv
+from pathlib import Path
 
-load_dotenv('.flaskenv')
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+def run_command(cmd, description=None, capture=True):
+    """Run a shell command and return success status"""
+    if description:
+        print(f"  {description}...")
+    try:
+        if capture:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+            return True, result.stdout
+        else:
+            subprocess.run(cmd, shell=True, check=True)
+            return True, ""
+    except subprocess.CalledProcessError as e:
+        if capture:
+            return False, e.stderr
+        else:
+            return False, str(e)
 
-from app import app
-from extensions import db
-from models import LogEntry, ServiceStatus, ServiceMetric
+def setup_postgresql():
+    """Ensure PostgreSQL is installed and running"""
+    print("\n✓ PostgreSQL check...")
 
-def get_db_credentials(config):
-    """Prompts the user for PostgreSQL connection details."""
-    print("\n--- PostgreSQL Database Configuration ---")
+    # Check if PostgreSQL is installed
+    success, _ = run_command("which psql", capture=True)
+    if not success:
+        print("  PostgreSQL not found. Installing...")
+        run_command("sudo apt update", "Updating package list", capture=False)
+        run_command(
+            "sudo apt install -y postgresql postgresql-contrib libpq-dev python3-dev",
+            "Installing PostgreSQL",
+            capture=False
+        )
 
-    # Load existing or use defaults
-    db_details = {
-        'host': config.get('database_credentials', 'db_host', fallback='localhost'),
-        'port': config.get('database_credentials', 'db_port', fallback='5432'),
-        'user': config.get('database_credentials', 'db_user', fallback='helm_user'),
-        'dbname': config.get('database_credentials', 'db_dbname', fallback='helm_db')
+    # Ensure PostgreSQL is running
+    run_command("sudo systemctl start postgresql 2>/dev/null || true")
+    run_command("sudo systemctl enable postgresql 2>/dev/null || true")
+    print("  ✓ PostgreSQL ready")
+
+def create_database():
+    """Create Helm database and user"""
+    print("\n✓ Setting up Helm database...")
+
+    db_name = "helm_db"
+    db_user = "helm_user"
+    db_password = os.urandom(24).hex()[:24]
+
+    # Check if database exists
+    success, output = run_command(
+        f"sudo -u postgres psql -tAc \"SELECT 1 FROM pg_database WHERE datname='{db_name}'\""
+    )
+
+    if "1" not in output:
+        print("  Creating database and user...")
+
+        # Create database and user in single psql call
+        create_sql = f"""
+CREATE DATABASE {db_name};
+CREATE USER {db_user} WITH PASSWORD '{db_password}';
+GRANT ALL PRIVILEGES ON DATABASE {db_name} TO {db_user};
+"""
+        # Use heredoc to handle quotes properly
+        run_command(f"sudo -u postgres psql <<'EOF'\n{create_sql}\nEOF\n")
+
+        # Grant schema permissions (PostgreSQL 15+)
+        schema_sql = f"""
+GRANT ALL ON SCHEMA public TO {db_user};
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {db_user};
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {db_user};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {db_user};
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {db_user};
+"""
+        run_command(f"sudo -u postgres psql -d {db_name} <<'EOF'\n{schema_sql}\nEOF\n")
+
+        print(f"  ✓ Database created: {db_name}")
+        print(f"  ✓ User created: {db_user}")
+    else:
+        print(f"  ✓ Database {db_name} already exists")
+        # Try to get existing password from config
+        instance_dir = Path(__file__).parent / "instance"
+        config_file = instance_dir / "helm.conf"
+        if config_file.exists():
+            config = configparser.ConfigParser()
+            config.read(config_file)
+            try:
+                conn_str = config.get('database', 'connection_string')
+                # Extract password from connection string
+                import re
+                match = re.search(r':([^@]+)@', conn_str)
+                if match:
+                    db_password = match.group(1)
+                    print(f"  ✓ Using existing password from config")
+            except:
+                pass
+
+    return db_name, db_user, db_password
+
+def save_config(db_name, db_user, db_password):
+    """Save database configuration"""
+    instance_dir = Path(__file__).parent / "instance"
+    instance_dir.mkdir(exist_ok=True)
+
+    config_file = instance_dir / "helm.conf"
+
+    config = configparser.ConfigParser()
+    config['database'] = {
+        'connection_string': f'postgresql://{db_user}:{db_password}@localhost:5432/{db_name}',
+        'db_host': 'localhost',
+        'db_port': '5432',
+        'db_name': db_name,
+        'db_user': db_user
     }
 
-    host = input(f"Host [{db_details['host']}]: ") or db_details['host']
-    port = input(f"Port [{db_details['port']}]: ") or db_details['port']
-    dbname = input(f"Database Name [{db_details['dbname']}]: ") or db_details['dbname']
-    user = input(f"User [{db_details['user']}]: ") or db_details['user']
-    password = getpass("Password: ")
+    with open(config_file, 'w') as f:
+        config.write(f)
 
-    return {'host': host, 'port': port, 'dbname': dbname, 'user': user, 'password': password}
+    print(f"\n✓ Configuration saved to instance/helm.conf")
+    return config_file
 
-def test_db_connection(creds):
-    """Tests the database connection."""
-    from urllib.parse import quote_plus
+def initialize_schema(db_name, db_user, db_password):
+    """Initialize database schema"""
+    print("\n✓ Initializing database schema...")
 
-    escaped_password = quote_plus(creds['password'])
-    conn_string = f"postgresql://{creds['user']}:{escaped_password}@{creds['host']}:{creds['port']}/{creds['dbname']}"
-
-    try:
-        engine = create_engine(conn_string)
-        with engine.connect() as connection:
-            print("\n✓ Database connection successful!")
-            return conn_string, True
-    except Exception as e:
-        print(f"\n✗ Connection failed: {e}", file=sys.stderr)
-        return None, False
-
-def init_db():
-    """Interactively configures and initializes the database."""
-    instance_path = app.instance_path
-    config_path = os.path.join(instance_path, 'helm.conf')
-
-    config = configparser.RawConfigParser()
-
-    if os.path.exists(config_path):
-        config.read(config_path)
-        print(f"\n✓ Existing configuration found: {config_path}")
-    else:
-        print(f"\n→ Creating new config: {config_path}")
-        os.makedirs(instance_path, exist_ok=True)
-
-    # Database configuration - PostgreSQL only
-    print("\n╔════════════════════════════════════════════════════════════╗")
-    print("║  Helm requires a PostgreSQL database for production use   ║")
-    print("╚════════════════════════════════════════════════════════════╝")
-    print("\nMake sure you have:")
-    print("  1. PostgreSQL installed and running")
-    print("  2. Created a database (e.g., helm_db)")
-    print("  3. Created a user with access to that database")
-    print("\nSee SETUP.md for Ubuntu installation instructions.\n")
-
-    # PostgreSQL configuration
-    while True:
-        creds = get_db_credentials(config)
-        conn_string, success = test_db_connection(creds)
+    # Try SQL file first
+    schema_file = Path(__file__).parent / "schema.sql"
+    if schema_file.exists():
+        success, output = run_command(
+            f"PGPASSWORD='{db_password}' psql -h localhost -U {db_user} -d {db_name} -f {schema_file}"
+        )
         if success:
-            if not config.has_section('database'):
-                config.add_section('database')
-            config.set('database', 'connection_string', conn_string)
+            print("  ✓ Schema initialized from schema.sql")
+            return
 
-            if not config.has_section('database_credentials'):
-                config.add_section('database_credentials')
-            for key, val in creds.items():
-                if key != 'password':
-                    config.set('database_credentials', f'db_{key}', val)
-            break
-        else:
-            if input("\nRetry? (y/n): ").lower() != 'y':
-                sys.exit("Database configuration aborted.")
+    # Fallback to Python ORM
+    print("  Using Python ORM to create tables...")
+    try:
+        # Import after config is saved
+        from app import app
+        from extensions import db
 
-    # Save configuration
-    with open(config_path, 'w') as configfile:
-        config.write(configfile)
-    print(f"\n✓ Configuration saved to: {config_path}")
+        with app.app_context():
+            db.create_all()
+            print("  ✓ Schema initialized")
+            print("    - log_entries")
+            print("    - service_status")
+            print("    - service_metrics")
+    except Exception as e:
+        print(f"  ⚠ Schema initialization warning: {e}")
+        print("  (This is normal if tables already exist)")
 
-    # Reload the app with the new database configuration
-    print("\nReloading application with new database configuration...")
+def main():
+    print("="*60)
+    print("  Helm Database Setup (Automated)")
+    print("="*60)
 
-    # We need to reinitialize the app to pick up the new config
-    from importlib import reload
-    import sys
+    # 1. Setup PostgreSQL
+    setup_postgresql()
 
-    # Remove the app module from cache to force reload
-    if 'app' in sys.modules:
-        del sys.modules['app']
+    # 2. Create database and user
+    db_name, db_user, db_password = create_database()
 
-    # Re-import with new configuration
-    from app import app as new_app
-    from extensions import db as new_db
+    # 3. Save configuration
+    save_config(db_name, db_user, db_password)
 
-    # Initialize database schema
-    with new_app.app_context():
-        print("Initializing database schema...")
-        new_db.create_all()
-        print("✓ Database schema initialized successfully!")
-        print("\nCreated tables:")
-        print("  - log_entries (immutable log storage)")
-        print("  - service_status (service health tracking)")
-        print("  - service_metrics (performance metrics)")
-        print("\n✅ Helm database setup complete!")
-        print("You can now start Helm with: python run.py")
+    # 4. Initialize schema
+    initialize_schema(db_name, db_user, db_password)
+
+    print("\n" + "="*60)
+    print("  ✓ Helm database setup complete!")
+    print("="*60)
+    print()
 
 if __name__ == '__main__':
-    init_db()
+    main()

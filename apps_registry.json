@@ -1,0 +1,74 @@
+{
+  "core_apps": {
+    "core": {
+      "name": "HiveMatrix Core",
+      "description": "Authentication & service registry - Required",
+      "git_url": "https://github.com/ruapotato/hivematrix-core",
+      "port": 5000,
+      "required": true,
+      "dependencies": ["postgresql"],
+      "install_order": 1
+    },
+    "nexus": {
+      "name": "HiveMatrix Nexus",
+      "description": "Frontend gateway and UI - Required",
+      "git_url": "https://github.com/ruapotato/hivematrix-nexus",
+      "port": 8000,
+      "required": true,
+      "dependencies": ["core", "keycloak"],
+      "install_order": 2
+    }
+  },
+  "default_apps": {
+    "codex": {
+      "name": "HiveMatrix Codex",
+      "description": "Central data hub for MSP operations",
+      "git_url": "https://github.com/ruapotato/hivematrix-codex",
+      "port": 5010,
+      "required": false,
+      "dependencies": ["postgresql", "core"],
+      "install_order": 3
+    },
+    "ledger": {
+      "name": "HiveMatrix Ledger",
+      "description": "Billing calculations and invoicing",
+      "git_url": "https://github.com/ruapotato/hivematrix-ledger.git",
+      "port": 5030,
+      "required": false,
+      "dependencies": ["postgresql", "core", "codex"],
+      "install_order": 4
+    },
+    "knowledgetree": {
+      "name": "HiveMatrix KnowledgeTree",
+      "description": "Knowledge management with graph database",
+      "git_url": "https://github.com/ruapotato/hivematrix-knowledgetree",
+      "port": 5020,
+      "required": false,
+      "dependencies": ["neo4j", "core", "codex"],
+      "install_order": 5
+    }
+  },
+  "system_dependencies": {
+    "keycloak": {
+      "name": "Keycloak",
+      "description": "Authentication server",
+      "version": "26.0.5",
+      "download_url": "https://github.com/keycloak/keycloak/releases/download/26.0.5/keycloak-26.0.5.tar.gz",
+      "port": 8080,
+      "required": true,
+      "install_order": 0
+    },
+    "postgresql": {
+      "name": "PostgreSQL",
+      "description": "Relational database",
+      "apt_package": "postgresql postgresql-contrib",
+      "required": true
+    },
+    "neo4j": {
+      "name": "Neo4j",
+      "description": "Graph database for KnowledgeTree",
+      "required": false,
+      "install_script": "install_neo4j.sh"
+    }
+  }
+}
