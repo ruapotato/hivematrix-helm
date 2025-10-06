@@ -79,7 +79,30 @@ CLIENT_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients?cl
   -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "core-client" || true)
 
 if [ -n "$CLIENT_EXISTS" ]; then
-    echo -e "${BLUE}  Client already exists${NC}"
+    echo -e "${BLUE}  Client already exists, updating configuration...${NC}"
+    # Get client ID to update it
+    EXISTING_CLIENT_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/clients?clientId=core-client" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+
+    # Update the client with logout redirect URIs
+    curl -s -X PUT "$KEYCLOAK_URL/admin/realms/hivematrix/clients/$EXISTING_CLIENT_ID" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "clientId": "core-client",
+        "name": "HiveMatrix Core Service",
+        "enabled": true,
+        "protocol": "openid-connect",
+        "publicClient": false,
+        "standardFlowEnabled": true,
+        "directAccessGrantsEnabled": false,
+        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*"],
+        "webOrigins": ["+"],
+        "attributes": {
+          "post.logout.redirect.uris": "+"
+        }
+      }'
+    echo -e "${GREEN}✓ Client updated${NC}"
 else
     curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/clients" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -92,8 +115,11 @@ else
         "publicClient": false,
         "standardFlowEnabled": true,
         "directAccessGrantsEnabled": false,
-        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth"],
-        "webOrigins": ["+"]
+        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*"],
+        "webOrigins": ["+"],
+        "attributes": {
+          "post.logout.redirect.uris": "+"
+        }
       }'
     echo -e "${GREEN}✓ Client created${NC}"
 fi

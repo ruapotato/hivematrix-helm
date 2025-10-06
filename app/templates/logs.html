@@ -3,97 +3,549 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Logs - Helm</title>
+    <title>System Logs - HiveMatrix Helm</title>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="card__header">
-                <h1 class="card__title">System Logs</h1>
-                <a href="/" class="btn btn--small">
+    <div class="logs-container">
+        <div class="logs-header">
+            <div class="logs-header__left">
+                <h1 class="logs-title">System Logs</h1>
+                <div class="logs-status">
+                    <span class="status-dot" id="liveStatus"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+            </div>
+            <div class="logs-header__right">
+                <button class="btn btn--ghost" onclick="toggleFilters()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path>
+                    </svg>
+                    Filters
+                </button>
+                <button class="btn btn--ghost" onclick="clearLogs()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                    </svg>
+                    Clear
+                </button>
+                <button class="btn btn--ghost" onclick="toggleLive()" id="liveToggle">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M8 12h8M12 8v8"></path>
+                    </svg>
+                    <span id="liveToggleText">Pause</span>
+                </button>
+                <button class="btn btn--primary" onclick="navigateTo('/')">
                     <span class="btn__label">← Back to Dashboard</span>
-                </a>
+                </button>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card__header">
-                <h2 class="card__title">Filters</h2>
+        <div class="logs-filters" id="filtersPanel" style="display: none;">
+            <div class="filter-group">
+                <label>Service</label>
+                <select id="serviceFilter" onchange="applyFilters()">
+                    <option value="">All Services</option>
+                    {% for service_name in services.keys() %}
+                    <option value="{{ service_name }}">{{ service_name }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="card__body">
-                <form method="get" action="/logs">
-                    <div class="form-group">
-                        <label for="service">Service:</label>
-                        <select name="service" id="service">
-                            <option value="">All Services</option>
-                            {% for service_name in services.keys() %}
-                                <option value="{{ service_name }}" {% if service_name == selected_service %}selected{% endif %}>
-                                    {{ service_name }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="level">Level:</label>
-                        <select name="level" id="level">
-                            <option value="">All Levels</option>
-                            <option value="DEBUG" {% if selected_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
-                            <option value="INFO" {% if selected_level == 'INFO' %}selected{% endif %}>INFO</option>
-                            <option value="WARNING" {% if selected_level == 'WARNING' %}selected{% endif %}>WARNING</option>
-                            <option value="ERROR" {% if selected_level == 'ERROR' %}selected{% endif %}>ERROR</option>
-                            <option value="CRITICAL" {% if selected_level == 'CRITICAL' %}selected{% endif %}>CRITICAL</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn btn--primary">
-                        <span class="btn__label">Apply Filters</span>
-                    </button>
-                </form>
+            <div class="filter-group">
+                <label>Level</label>
+                <select id="levelFilter" onchange="applyFilters()">
+                    <option value="">All Levels</option>
+                    <option value="DEBUG">DEBUG</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Search</label>
+                <input type="text" id="searchFilter" placeholder="Search messages..." oninput="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>Auto-scroll</label>
+                <label class="switch">
+                    <input type="checkbox" id="autoScroll" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card__header">
-                <h2 class="card__title">Log Entries</h2>
-            </div>
-            <div class="card__body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Service</th>
-                            <th>Level</th>
-                            <th>Message</th>
-                            <th>User</th>
-                            <th>Trace ID</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for log in logs %}
-                        <tr class="log-row log-row--{{ log.level.lower() }}">
-                            <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                            <td>
-                                <a href="/service/{{ log.service_name }}">{{ log.service_name }}</a>
-                            </td>
-                            <td>
-                                <span class="badge badge--{{ 'danger' if log.level in ['ERROR', 'CRITICAL'] else 'warning' if log.level == 'WARNING' else 'info' }}">
-                                    {{ log.level }}
-                                </span>
-                            </td>
-                            <td>{{ log.message[:300] }}{% if log.message|length > 300 %}...{% endif %}</td>
-                            <td>{{ log.user_id or '-' }}</td>
-                            <td>{{ log.trace_id or '-' }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-
-                {% if not logs %}
-                <p>No logs found matching your criteria.</p>
-                {% endif %}
+        <div class="logs-viewer" id="logsViewer">
+            <div class="logs-empty" id="emptyState">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path>
+                    <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"></path>
+                </svg>
+                <p>No logs yet. Waiting for events...</p>
             </div>
         </div>
     </div>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f1419;
+            color: #e6edf3;
+            line-height: 1.6;
+        }
+
+        .logs-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .logs-header__left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .logs-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .logs-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: #0d1117;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #8b949e;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-dot.live {
+            background: #10b981;
+        }
+
+        .status-dot.paused {
+            background: #f59e0b;
+        }
+
+        .status-dot.error {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .logs-header__right {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn--ghost {
+            background: transparent;
+            color: #e6edf3;
+            border: 1px solid #30363d;
+        }
+
+        .btn--ghost:hover {
+            background: #21262d;
+            border-color: #8b949e;
+        }
+
+        .btn--primary {
+            background: #238636;
+            color: white;
+        }
+
+        .btn--primary:hover {
+            background: #2ea043;
+        }
+
+        .btn__label {
+            white-space: nowrap;
+        }
+
+        .logs-filters {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 150px;
+        }
+
+        .filter-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #8b949e;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-group select,
+        .filter-group input[type="text"] {
+            padding: 0.5rem 0.75rem;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 0.375rem;
+            color: #e6edf3;
+            font-size: 0.875rem;
+        }
+
+        .filter-group select:focus,
+        .filter-group input[type="text"]:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #30363d;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #238636;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .logs-viewer {
+            flex: 1;
+            overflow-y: auto;
+            background: #0d1117;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .logs-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #8b949e;
+            gap: 1rem;
+        }
+
+        .logs-empty svg {
+            opacity: 0.5;
+        }
+
+        .log-entry {
+            display: flex;
+            gap: 1rem;
+            padding: 0.5rem 1.5rem;
+            border-bottom: 1px solid #21262d;
+            transition: background 0.15s;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .log-entry:hover {
+            background: #161b22;
+        }
+
+        .log-time {
+            color: #8b949e;
+            min-width: 90px;
+            font-size: 0.8125rem;
+        }
+
+        .log-service {
+            color: #58a6ff;
+            min-width: 120px;
+            font-weight: 500;
+        }
+
+        .log-level {
+            min-width: 70px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+        }
+
+        .log-level.DEBUG { color: #8b5cf6; }
+        .log-level.INFO { color: #58a6ff; }
+        .log-level.WARNING { color: #f59e0b; }
+        .log-level.ERROR { color: #f85149; }
+        .log-level.CRITICAL {
+            color: #fff;
+            background: #da3633;
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .log-message {
+            flex: 1;
+            color: #e6edf3;
+            word-break: break-word;
+        }
+
+        .log-meta {
+            display: flex;
+            gap: 1rem;
+            margin-left: auto;
+            color: #8b949e;
+            font-size: 0.75rem;
+        }
+    </style>
+
+    <script>
+        let isLive = true;
+        let logs = [];
+        let lastLogId = 0;
+        let filters = {
+            service: '',
+            level: '',
+            search: ''
+        };
+
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        function toggleFilters() {
+            const panel = document.getElementById('filtersPanel');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function toggleLive() {
+            isLive = !isLive;
+            const btn = document.getElementById('liveToggleText');
+            const status = document.getElementById('liveStatus');
+
+            btn.textContent = isLive ? 'Pause' : 'Resume';
+            status.className = 'status-dot ' + (isLive ? 'live' : 'paused');
+            document.getElementById('statusText').textContent = isLive ? 'Live' : 'Paused';
+
+            if (isLive) {
+                fetchLogs();
+            }
+        }
+
+        function clearLogs() {
+            logs = [];
+            lastLogId = 0;
+            const viewer = document.getElementById('logsViewer');
+            viewer.querySelectorAll('.log-entry').forEach(el => el.remove());
+            document.getElementById('emptyState').style.display = 'flex';
+        }
+
+        function applyFilters() {
+            filters.service = document.getElementById('serviceFilter').value;
+            filters.level = document.getElementById('levelFilter').value;
+            filters.search = document.getElementById('searchFilter').value.toLowerCase();
+
+            // Re-render all logs with new filters
+            const viewer = document.getElementById('logsViewer');
+            viewer.querySelectorAll('.log-entry').forEach(el => el.remove());
+            logs.forEach(log => appendLogEntry(log));
+        }
+
+        function matchesFilters(log) {
+            if (filters.service && log.service_name !== filters.service) return false;
+            if (filters.level && log.level !== filters.level) return false;
+            if (filters.search && !log.message.toLowerCase().includes(filters.search)) return false;
+            return true;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', { hour12: false });
+        }
+
+        function appendLogEntry(log) {
+            if (!matchesFilters(log)) return;
+
+            const viewer = document.getElementById('logsViewer');
+            const emptyState = document.getElementById('emptyState');
+            const autoScroll = document.getElementById('autoScroll').checked;
+
+            emptyState.style.display = 'none';
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.dataset.logId = log.id;
+            entry.innerHTML = `
+                <span class="log-time">${formatTime(log.timestamp)}</span>
+                <span class="log-service">${escapeHtml(log.service_name)}</span>
+                <span class="log-level ${log.level}">${log.level}</span>
+                <span class="log-message">${escapeHtml(log.message)}</span>
+                ${log.user_id ? `<span class="log-meta">${escapeHtml(log.user_id)}</span>` : ''}
+            `;
+            viewer.appendChild(entry);
+
+            if (autoScroll) {
+                viewer.scrollTop = viewer.scrollHeight;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function fetchLogs() {
+            if (!isLive) return;
+
+            try {
+                const basePath = getBasePath();
+                const response = await fetch(`${basePath}/api/logs?limit=100`);
+
+                if (!response.ok) throw new Error('Failed to fetch logs');
+
+                const data = await response.json();
+                const newLogs = data.logs || [];
+
+                // Only process new logs (those with ID > lastLogId)
+                const unseenLogs = newLogs.filter(log => log.id > lastLogId);
+
+                if (unseenLogs.length > 0) {
+                    // Sort by ID to ensure correct order
+                    unseenLogs.sort((a, b) => a.id - b.id);
+
+                    unseenLogs.forEach(log => {
+                        logs.push(log);
+                        appendLogEntry(log);
+                        lastLogId = Math.max(lastLogId, log.id);
+                    });
+
+                    // Keep only last 1000 logs in memory to prevent memory issues
+                    if (logs.length > 1000) {
+                        const toRemove = logs.length - 1000;
+                        logs.splice(0, toRemove);
+
+                        // Remove old entries from DOM
+                        const viewer = document.getElementById('logsViewer');
+                        const entries = viewer.querySelectorAll('.log-entry');
+                        for (let i = 0; i < toRemove && i < entries.length; i++) {
+                            entries[i].remove();
+                        }
+                    }
+                }
+
+                const status = document.getElementById('liveStatus');
+                status.className = 'status-dot live';
+                document.getElementById('statusText').textContent = 'Live';
+
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+                const status = document.getElementById('liveStatus');
+                status.className = 'status-dot error';
+                document.getElementById('statusText').textContent = 'Error';
+            }
+        }
+
+        // Poll for new logs every 2 seconds
+        setInterval(() => {
+            if (isLive) {
+                fetchLogs();
+            }
+        }, 2000);
+
+        // Initial fetch
+        fetchLogs();
+    </script>
 </body>
 </html>

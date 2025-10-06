@@ -154,8 +154,42 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn--danger" onclick="deleteUser()">Delete User</button>
+                <button class="btn btn--warning" onclick="showResetPasswordModal()">Reset Password</button>
                 <button class="btn" onclick="hideEditUserModal()">Cancel</button>
                 <button class="btn btn--primary" onclick="updateUser()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="resetPasswordModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reset Password</h2>
+                <span class="modal-close" onclick="hideResetPasswordModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Resetting password for: <strong id="reset-username"></strong></p>
+                <form onsubmit="event.preventDefault(); resetPassword(); return false;">
+                    <div class="form-group">
+                        <label for="new-password">New Password</label>
+                        <input type="password" id="new-password" required minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm Password</label>
+                        <input type="password" id="confirm-password" required minlength="8">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="temporary-password">
+                            Temporary (user must change on next login)
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="hideResetPasswordModal()">Cancel</button>
+                <button class="btn btn--primary" onclick="resetPassword()">Reset Password</button>
             </div>
         </div>
     </div>
@@ -267,6 +301,15 @@
             font-size: 0.85rem;
             margin-right: 0.5rem;
             margin-bottom: 0.5rem;
+        }
+
+        .btn--warning {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .btn--warning:hover {
+            background-color: #e67e22;
         }
     </style>
 
@@ -607,6 +650,77 @@
                 } else {
                     const error = await response.json();
                     alert('Error deleting user: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function showResetPasswordModal() {
+            const username = document.getElementById('edit-username').value;
+            document.getElementById('reset-username').textContent = username;
+
+            // Hide edit modal and show reset password modal
+            document.getElementById('editUserModal').style.display = 'none';
+            document.getElementById('resetPasswordModal').style.display = 'flex';
+        }
+
+        function hideResetPasswordModal() {
+            document.getElementById('resetPasswordModal').style.display = 'none';
+
+            // Clear the form
+            document.getElementById('new-password').value = '';
+            document.getElementById('confirm-password').value = '';
+            document.getElementById('temporary-password').checked = false;
+
+            // Show edit modal again
+            document.getElementById('editUserModal').style.display = 'flex';
+        }
+
+        async function resetPassword() {
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const temporary = document.getElementById('temporary-password').checked;
+
+            // Validate passwords match
+            if (newPassword !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+
+            // Validate password length
+            if (newPassword.length < 8) {
+                alert('Password must be at least 8 characters long!');
+                return;
+            }
+
+            const userId = document.getElementById('edit-user-id').value;
+
+            try {
+                const basePath = getBasePath();
+                const response = await fetch(`${basePath}/api/keycloak/users/${userId}/reset-password`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        password: newPassword,
+                        temporary: temporary
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Password reset successfully!');
+                    document.getElementById('resetPasswordModal').style.display = 'none';
+
+                    // Clear the form
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('confirm-password').value = '';
+                    document.getElementById('temporary-password').checked = false;
+
+                    // Show edit modal again
+                    document.getElementById('editUserModal').style.display = 'flex';
+                } else {
+                    const error = await response.json();
+                    alert('Error resetting password: ' + (error.error || 'Unknown error'));
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
