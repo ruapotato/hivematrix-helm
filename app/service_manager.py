@@ -382,23 +382,30 @@ class ServiceManager:
             'health': 'unknown'
         }
 
-        # Special case for Helm - detect its own process
-        if service_name == 'helm':
+        # Special case for services without DB tracking (Helm, Keycloak)
+        if service_name in ['helm', 'keycloak']:
             port = config.get('port')
             if port:
                 try:
                     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                        connections = proc.net_connections()
-                        for conn in connections:
-                            if conn.laddr.port == port and conn.status == 'LISTEN':
-                                proc_info = ServiceManager.get_process_info(proc.pid)
-                                if proc_info:
-                                    result.update(proc_info)
-                                    result['status'] = 'running'
-                                    result['pid'] = proc.pid
-                                break
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                        try:
+                            connections = proc.net_connections()
+                            for conn in connections:
+                                if conn.laddr.port == port and conn.status == 'LISTEN':
+                                    proc_info = ServiceManager.get_process_info(proc.pid)
+                                    if proc_info:
+                                        result.update(proc_info)
+                                        result['status'] = 'running'
+                                        result['pid'] = proc.pid
+                                    break
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            continue
+
+                    # If we didn't find a process, mark as stopped
+                    if result['status'] == 'unknown':
+                        result['status'] = 'stopped'
+                except Exception:
+                    result['status'] = 'stopped'
 
         elif status:
             result.update(status.to_dict())

@@ -135,22 +135,67 @@ else
     echo -e "${YELLOW}⚠ Master config not found at $MASTER_CONFIG${NC}"
 fi
 
-# Create admins group
+# Create permission groups
 echo ""
-echo "Creating admins group..."
+echo "Creating permission groups..."
+
+# Create admins group
 GROUP_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=admins" \
   -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "admins" || true)
 
 if [ -n "$GROUP_EXISTS" ]; then
-    echo -e "${BLUE}  Group already exists${NC}"
+    echo -e "${BLUE}  admins group already exists${NC}"
 else
     curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/groups" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{"name": "admins"}'
-    echo -e "${GREEN}✓ Group created${NC}"
+    echo -e "${GREEN}✓ admins group created${NC}"
 fi
 
+# Create technicians group
+GROUP_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=technicians" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "technicians" || true)
+
+if [ -n "$GROUP_EXISTS" ]; then
+    echo -e "${BLUE}  technicians group already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/groups" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "technicians"}'
+    echo -e "${GREEN}✓ technicians group created${NC}"
+fi
+
+# Create billing group
+GROUP_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=billing" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "billing" || true)
+
+if [ -n "$GROUP_EXISTS" ]; then
+    echo -e "${BLUE}  billing group already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/groups" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "billing"}'
+    echo -e "${GREEN}✓ billing group created${NC}"
+fi
+
+# Create client group
+GROUP_EXISTS=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=client" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o "\"name\":\"client\"" || true)
+
+if [ -n "$GROUP_EXISTS" ]; then
+    echo -e "${BLUE}  client group already exists${NC}"
+else
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/hivematrix/groups" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "client"}'
+    echo -e "${GREEN}✓ client group created${NC}"
+fi
+
+# Get admins group ID for adding user
 GROUP_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/hivematrix/groups?search=admins" \
   -H "Authorization: Bearer $ACCESS_TOKEN" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
 

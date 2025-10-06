@@ -44,9 +44,18 @@ if [ -f "pyenv/bin/python" ]; then
     source pyenv/bin/activate 2>/dev/null || true
 
     echo -e "${YELLOW}Stopping additional services...${NC}"
-    python cli.py stop knowledgetree 2>/dev/null || echo "  (already stopped)"
-    python cli.py stop ledger 2>/dev/null || echo "  (already stopped)"
-    python cli.py stop codex 2>/dev/null || echo "  (already stopped)"
+    # Auto-detect all hivematrix services
+    for dir in "$PARENT_DIR"/hivematrix-*; do
+        if [ -d "$dir" ]; then
+            service_name=$(basename "$dir" | sed 's/^hivematrix-//')
+            # Skip core, nexus, helm
+            if [[ "$service_name" != "core" ]] && [[ "$service_name" != "nexus" ]] && [[ "$service_name" != "helm" ]]; then
+                if [ -f "$dir/run.py" ]; then
+                    python cli.py stop $service_name 2>/dev/null || echo "  (already stopped)"
+                fi
+            fi
+        fi
+    done
 
     echo -e "${YELLOW}Stopping core services...${NC}"
     python cli.py stop nexus 2>/dev/null || echo "  (already stopped)"
@@ -501,34 +510,47 @@ echo ""
 echo -e "${GREEN}✓ All required services running${NC}"
 echo ""
 
-# Start additional services if they exist
-ADDITIONAL_SERVICES=("codex" "ledger" "knowledgetree")
-HAS_ADDITIONAL=false
-
-for svc in "${ADDITIONAL_SERVICES[@]}"; do
-if [ -d "$PARENT_DIR/hivematrix-$svc" ]; then
-    HAS_ADDITIONAL=true
-    break
-fi
-done
-
-if [ "$HAS_ADDITIONAL" = true ]; then
+# Auto-detect and start additional services
 echo "================================================================"
-echo "  Starting Additional Services"
+echo "  Detecting Additional Services"
 echo "================================================================"
 echo ""
 
-for svc in "${ADDITIONAL_SERVICES[@]}"; do
-    if [ -d "$PARENT_DIR/hivematrix-$svc" ]; then
-        echo -e "${YELLOW}Starting $svc...${NC}"
-        python cli.py start $svc 2>/dev/null || echo "  (already running or failed)"
-        sleep 2
+# Find all hivematrix-* directories (excluding core, nexus, helm)
+ADDITIONAL_SERVICES=()
+for dir in "$PARENT_DIR"/hivematrix-*; do
+    if [ -d "$dir" ]; then
+        service_name=$(basename "$dir" | sed 's/^hivematrix-//')
+        # Skip core, nexus, helm
+        if [[ "$service_name" != "core" ]] && [[ "$service_name" != "nexus" ]] && [[ "$service_name" != "helm" ]]; then
+            # Check if it has a run.py file (indicates it's a Flask service)
+            if [ -f "$dir/run.py" ]; then
+                ADDITIONAL_SERVICES+=("$service_name")
+                echo -e "${BLUE}  Found: $service_name${NC}"
+            fi
+        fi
     fi
 done
 
-echo ""
-echo -e "${GREEN}✓ Additional services started${NC}"
-echo ""
+if [ ${#ADDITIONAL_SERVICES[@]} -gt 0 ]; then
+    echo ""
+    echo "================================================================"
+    echo "  Starting Additional Services"
+    echo "================================================================"
+    echo ""
+
+    for svc in "${ADDITIONAL_SERVICES[@]}"; do
+        echo -e "${YELLOW}Starting $svc...${NC}"
+        python cli.py start $svc 2>/dev/null || echo "  (already running or failed)"
+        sleep 2
+    done
+
+    echo ""
+    echo -e "${GREEN}✓ Additional services started${NC}"
+    echo ""
+else
+    echo -e "${BLUE}  No additional services found${NC}"
+    echo ""
 fi
 
 # Show status

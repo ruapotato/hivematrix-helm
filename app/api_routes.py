@@ -299,6 +299,254 @@ def get_service_metrics(service_name):
 
 
 # ============================================================
+# Keycloak User Management API
+# ============================================================
+
+import requests as http_requests
+
+def get_keycloak_admin_token():
+    """Get admin token for Keycloak API calls"""
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    # Use admin credentials from config or environment
+    admin_user = app.config.get('KEYCLOAK_ADMIN_USER', 'admin')
+    admin_pass = app.config.get('KEYCLOAK_ADMIN_PASS', 'admin')
+
+    token_url = f"{keycloak_url}/realms/master/protocol/openid-connect/token"
+
+    response = http_requests.post(token_url, data={
+        'client_id': 'admin-cli',
+        'username': admin_user,
+        'password': admin_pass,
+        'grant_type': 'password'
+    })
+
+    if response.status_code == 200:
+        return response.json().get('access_token')
+    return None
+
+
+@app.route('/api/keycloak/users', methods=['GET'])
+@admin_required
+def list_keycloak_users():
+    """List all users in Keycloak"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    users_url = f"{keycloak_url}/admin/realms/{realm}/users"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.get(users_url, headers=headers)
+
+    if response.status_code == 200:
+        return jsonify({'users': response.json()})
+    return {'error': 'Failed to fetch users'}, response.status_code
+
+
+@app.route('/api/keycloak/users', methods=['POST'])
+@admin_required
+def create_keycloak_user():
+    """Create a new user in Keycloak"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    data = request.get_json()
+    if not data or not data.get('username') or not data.get('email'):
+        return {'error': 'username and email are required'}, 400
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    users_url = f"{keycloak_url}/admin/realms/{realm}/users"
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+    user_data = {
+        'username': data['username'],
+        'email': data['email'],
+        'firstName': data.get('firstName', ''),
+        'lastName': data.get('lastName', ''),
+        'enabled': data.get('enabled', True),
+        'emailVerified': data.get('emailVerified', False)
+    }
+
+    response = http_requests.post(users_url, json=user_data, headers=headers)
+
+    if response.status_code == 201:
+        return {'success': True, 'message': 'User created successfully'}, 201
+    return {'error': 'Failed to create user', 'details': response.text}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>', methods=['PUT'])
+@admin_required
+def update_keycloak_user(user_id):
+    """Update a user in Keycloak"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    data = request.get_json()
+    if not data:
+        return {'error': 'No data provided'}, 400
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    user_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}"
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+    response = http_requests.put(user_url, json=data, headers=headers)
+
+    if response.status_code == 204:
+        return {'success': True, 'message': 'User updated successfully'}
+    return {'error': 'Failed to update user'}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>', methods=['DELETE'])
+@admin_required
+def delete_keycloak_user(user_id):
+    """Delete a user from Keycloak"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    user_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.delete(user_url, headers=headers)
+
+    if response.status_code == 204:
+        return {'success': True, 'message': 'User deleted successfully'}
+    return {'error': 'Failed to delete user'}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>/reset-password', methods=['POST'])
+@admin_required
+def reset_user_password(user_id):
+    """Reset a user's password"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    data = request.get_json()
+    password = data.get('password')
+    temporary = data.get('temporary', True)
+
+    if not password:
+        return {'error': 'password is required'}, 400
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    password_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/reset-password"
+    headers = {'Authorization': f'Bearer {token}', 'Content-Type': 'application/json'}
+
+    password_data = {
+        'type': 'password',
+        'value': password,
+        'temporary': temporary
+    }
+
+    response = http_requests.put(password_url, json=password_data, headers=headers)
+
+    if response.status_code == 204:
+        return {'success': True, 'message': 'Password reset successfully'}
+    return {'error': 'Failed to reset password'}, response.status_code
+
+
+@app.route('/api/keycloak/groups', methods=['GET'])
+@admin_required
+def list_keycloak_groups():
+    """List all groups in Keycloak"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    groups_url = f"{keycloak_url}/admin/realms/{realm}/groups"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.get(groups_url, headers=headers)
+
+    if response.status_code == 200:
+        return jsonify({'groups': response.json()})
+    return {'error': 'Failed to fetch groups'}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>/groups', methods=['GET'])
+@admin_required
+def get_user_groups(user_id):
+    """Get groups for a user"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    groups_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.get(groups_url, headers=headers)
+
+    if response.status_code == 200:
+        return jsonify({'groups': response.json()})
+    return {'error': 'Failed to fetch user groups'}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>/groups/<group_id>', methods=['PUT'])
+@admin_required
+def add_user_to_group(user_id, group_id):
+    """Add user to a group"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    group_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups/{group_id}"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.put(group_url, headers=headers)
+
+    if response.status_code == 204:
+        return {'success': True, 'message': 'User added to group'}
+    return {'error': 'Failed to add user to group'}, response.status_code
+
+
+@app.route('/api/keycloak/users/<user_id>/groups/<group_id>', methods=['DELETE'])
+@admin_required
+def remove_user_from_group(user_id, group_id):
+    """Remove user from a group"""
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+
+    group_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups/{group_id}"
+    headers = {'Authorization': f'Bearer {token}'}
+
+    response = http_requests.delete(group_url, headers=headers)
+
+    if response.status_code == 204:
+        return {'success': True, 'message': 'User removed from group'}
+    return {'error': 'Failed to remove user from group'}, response.status_code
+
+
+# ============================================================
 # Health Check
 # ============================================================
 

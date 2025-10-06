@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - HiveMatrix Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">User Management</h1>
+                <p>Manage Keycloak users and groups</p>
+            </div>
+            <div class="card__body">
+                <div style="margin-bottom: 1rem;">
+                    <button class="btn btn--primary" onclick="showCreateUserModal()">
+                        <span class="btn__label">➕ Create New User</span>
+                    </button>
+                </div>
+
+                <div id="user-list">
+                    <p>Loading users...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="createUserModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New User</h2>
+                <span class="modal-close" onclick="hideCreateUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm" onsubmit="event.preventDefault(); createUser(); return false;">
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="firstName">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="lastName">
+                    </div>
+                    <div class="form-group">
+                        <label>Password *</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Groups</label>
+                        <div style="margin-top: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="group-admins" value="admins">
+                                Admin
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="group-technicians" value="technicians">
+                                Technician
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="group-billing" value="billing">
+                                Billing
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="group-client" value="client">
+                                Client
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="enabled" checked>
+                            Account Enabled
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="temporary" checked>
+                            Require Password Change on First Login
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="hideCreateUserModal()">Cancel</button>
+                <button class="btn btn--primary" onclick="createUser()">Create User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit User</h2>
+                <span class="modal-close" onclick="hideEditUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm" onsubmit="event.preventDefault(); updateUser(); return false;">
+                    <input type="hidden" id="edit-user-id">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="edit-username" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="edit-email">
+                    </div>
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="edit-firstName">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="edit-lastName">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="edit-enabled">
+                            Account Enabled
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>Groups</label>
+                        <div style="margin-top: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="edit-group-admins" value="admins">
+                                Admin
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="edit-group-technicians" value="technicians">
+                                Technician
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="edit-group-billing" value="billing">
+                                Billing
+                            </label>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                                <input type="checkbox" id="edit-group-client" value="client">
+                                Client
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn--danger" onclick="deleteUser()">Delete User</button>
+                <button class="btn" onclick="hideEditUserModal()">Cancel</button>
+                <button class="btn btn--primary" onclick="updateUser()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .modal-close {
+            font-size: 2rem;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .user-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .user-card:hover {
+            background-color: #f5f5f5;
+        }
+
+        .user-card h3 {
+            margin: 0 0 0.5rem 0;
+        }
+
+        .user-card .user-info {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .group-badge {
+            display: inline-block;
+            background-color: #1abc9c;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+
+    <script>
+        let allGroups = [];
+        let currentUserId = null;
+
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        async function loadUsers() {
+            try {
+                const basePath = getBasePath();
+                const response = await fetch(`${basePath}/api/keycloak/users`);
+                const data = await response.json();
+
+                if (data.users) {
+                    displayUsers(data.users);
+                } else {
+                    document.getElementById('user-list').innerHTML = '<p>No users found</p>';
+                }
+            } catch (error) {
+                document.getElementById('user-list').innerHTML = `<p style="color: red;">Error loading users: ${error.message}</p>`;
+            }
+        }
+
+        async function loadGroups() {
+            try {
+                const basePath = getBasePath();
+                const response = await fetch(`${basePath}/api/keycloak/groups`);
+                const data = await response.json();
+                allGroups = data.groups || [];
+            } catch (error) {
+                console.error('Error loading groups:', error);
+            }
+        }
+
+        async function displayUsers(users) {
+            const container = document.getElementById('user-list');
+            container.innerHTML = '';
+            const basePath = getBasePath();
+
+            for (const user of users) {
+                const userCard = document.createElement('div');
+                userCard.className = 'user-card';
+                userCard.onclick = () => editUser(user.id);
+
+                // Fetch user's groups
+                let groupsHtml = '';
+                try {
+                    const groupsResponse = await fetch(`${basePath}/api/keycloak/users/${user.id}/groups`);
+                    const groupsData = await groupsResponse.json();
+                    const groups = groupsData.groups || [];
+
+                    if (groups.length > 0) {
+                        groupsHtml = '<p>Groups: ' + groups.map(g =>
+                            `<span class="badge badge--info">${g.name}</span>`
+                        ).join(' ') + '</p>';
+                    } else {
+                        groupsHtml = '<p>Groups: <span style="color: #999;">None</span></p>';
+                    }
+                } catch (error) {
+                    groupsHtml = '<p>Groups: <span style="color: #999;">Error loading</span></p>';
+                }
+
+                userCard.innerHTML = `
+                    <h3>${user.username}</h3>
+                    <div class="user-info">
+                        <p>Email: ${user.email || 'N/A'}</p>
+                        <p>Name: ${user.firstName || ''} ${user.lastName || ''}</p>
+                        <p>Status: <span class="badge badge--${user.enabled ? 'success' : 'danger'}">${user.enabled ? 'Enabled' : 'Disabled'}</span></p>
+                        ${groupsHtml}
+                    </div>
+                `;
+
+                container.appendChild(userCard);
+            }
+        }
+
+        function showCreateUserModal() {
+            document.getElementById('createUserModal').style.display = 'flex';
+        }
+
+        function hideCreateUserModal() {
+            document.getElementById('createUserModal').style.display = 'none';
+            document.getElementById('createUserForm').reset();
+        }
+
+        async function createUser() {
+            const userData = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                enabled: document.getElementById('enabled').checked
+            };
+
+            const password = document.getElementById('password').value;
+            const temporary = document.getElementById('temporary').checked;
+
+            // Get selected groups
+            const selectedGroups = [];
+            ['admins', 'technicians', 'billing', 'client'].forEach(groupName => {
+                if (document.getElementById(`group-${groupName}`).checked) {
+                    selectedGroups.push(groupName);
+                }
+            });
+
+            try {
+                const basePath = getBasePath();
+
+                // Create user
+                const response = await fetch(`${basePath}/api/keycloak/users`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(userData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+
+                    // Fetch all users to get the new user's ID
+                    const usersResponse = await fetch(`${basePath}/api/keycloak/users`);
+                    const usersData = await usersResponse.json();
+                    const newUser = usersData.users.find(u => u.username === userData.username);
+
+                    if (newUser) {
+                        // Set password
+                        await fetch(`${basePath}/api/keycloak/users/${newUser.id}/reset-password`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({password, temporary})
+                        });
+
+                        // Get all groups
+                        const groupsResponse = await fetch(`${basePath}/api/keycloak/groups`);
+                        const groupsData = await groupsResponse.json();
+
+                        // Add user to selected groups
+                        for (const groupName of selectedGroups) {
+                            const group = groupsData.groups.find(g =>
+                                g.name === groupName || g.path === `/${groupName}`
+                            );
+                            if (group) {
+                                await fetch(`${basePath}/api/keycloak/users/${newUser.id}/groups/${group.id}`, {
+                                    method: 'PUT'
+                                });
+                            }
+                        }
+                    }
+
+                    alert('User created successfully!');
+                    hideCreateUserModal();
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    alert('Error creating user: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function editUser(userId) {
+            currentUserId = userId;
+
+            try {
+                const basePath = getBasePath();
+
+                // Fetch user details
+                const userResponse = await fetch(`${basePath}/api/keycloak/users`);
+                const userData = await userResponse.json();
+                const user = userData.users.find(u => u.id === userId);
+
+                if (!user) {
+                    alert('User not found');
+                    return;
+                }
+
+                // Populate form
+                document.getElementById('edit-user-id').value = user.id;
+                document.getElementById('edit-username').value = user.username;
+                document.getElementById('edit-email').value = user.email || '';
+                document.getElementById('edit-firstName').value = user.firstName || '';
+                document.getElementById('edit-lastName').value = user.lastName || '';
+                document.getElementById('edit-enabled').checked = user.enabled;
+
+                // Load user groups and populate checkboxes
+                const groupsResponse = await fetch(`${basePath}/api/keycloak/users/${userId}/groups`);
+                const groupsData = await groupsResponse.json();
+                const userGroups = groupsData.groups || [];
+
+                // Reset all checkboxes
+                ['admins', 'technicians', 'billing', 'client'].forEach(groupName => {
+                    document.getElementById(`edit-group-${groupName}`).checked = false;
+                });
+
+                // Check the boxes for groups the user belongs to
+                userGroups.forEach(group => {
+                    const groupName = group.name.toLowerCase();
+                    const checkbox = document.getElementById(`edit-group-${groupName}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+
+                document.getElementById('editUserModal').style.display = 'flex';
+            } catch (error) {
+                alert('Error loading user: ' + error.message);
+            }
+        }
+
+        function hideEditUserModal() {
+            document.getElementById('editUserModal').style.display = 'none';
+            currentUserId = null;
+        }
+
+        async function updateUser() {
+            const userId = document.getElementById('edit-user-id').value;
+
+            if (!userId) {
+                alert('No user ID found');
+                return;
+            }
+
+            const userData = {
+                email: document.getElementById('edit-email').value,
+                firstName: document.getElementById('edit-firstName').value,
+                lastName: document.getElementById('edit-lastName').value,
+                enabled: document.getElementById('edit-enabled').checked
+            };
+
+            // Get selected groups
+            const selectedGroups = [];
+            ['admins', 'technicians', 'billing', 'client'].forEach(groupName => {
+                if (document.getElementById(`edit-group-${groupName}`).checked) {
+                    selectedGroups.push(groupName);
+                }
+            });
+
+            try {
+                const basePath = getBasePath();
+
+                // Update user info
+                const response = await fetch(`${basePath}/api/keycloak/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(userData)
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    alert('Error updating user: ' + (result.error || 'Unknown error'));
+                    return;
+                }
+
+                // Get all groups
+                const allGroupsResponse = await fetch(`${basePath}/api/keycloak/groups`);
+                const allGroupsData = await allGroupsResponse.json();
+                const allGroups = allGroupsData.groups || [];
+
+                // Get current user groups
+                const currentGroupsResponse = await fetch(`${basePath}/api/keycloak/users/${userId}/groups`);
+                const currentGroupsData = await currentGroupsResponse.json();
+                const currentGroups = currentGroupsData.groups || [];
+
+                console.log('Current groups:', currentGroups.map(g => g.name));
+                console.log('Selected groups:', selectedGroups);
+
+                // Find groups to remove (user is in group but it's not selected)
+                for (const group of currentGroups) {
+                    const groupName = group.name.toLowerCase();
+                    if (!selectedGroups.includes(groupName)) {
+                        console.log(`Removing user from group: ${group.name}`);
+                        const removeResponse = await fetch(`${basePath}/api/keycloak/users/${userId}/groups/${group.id}`, {
+                            method: 'DELETE'
+                        });
+                        if (!removeResponse.ok) {
+                            console.error(`Failed to remove from group ${group.name}`);
+                        }
+                    }
+                }
+
+                // Find groups to add (selected but user is not in it)
+                const currentGroupNames = currentGroups.map(g => g.name.toLowerCase());
+                for (const groupName of selectedGroups) {
+                    if (!currentGroupNames.includes(groupName)) {
+                        // Find the group object
+                        const group = allGroups.find(g =>
+                            g.name.toLowerCase() === groupName
+                        );
+
+                        if (group) {
+                            console.log(`Adding user to group: ${group.name} (${group.id})`);
+                            const addResponse = await fetch(`${basePath}/api/keycloak/users/${userId}/groups/${group.id}`, {
+                                method: 'PUT'
+                            });
+                            if (!addResponse.ok) {
+                                console.error(`Failed to add to group ${group.name}`);
+                            }
+                        } else {
+                            console.error(`Group not found: ${groupName}`);
+                        }
+                    }
+                }
+
+                alert('User updated successfully!');
+                hideEditUserModal();
+                loadUsers();
+            } catch (error) {
+                console.error('Error updating user:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteUser() {
+            if (!confirm('Are you sure you want to delete this user?')) {
+                return;
+            }
+
+            const userId = document.getElementById('edit-user-id').value;
+
+            try {
+                const basePath = getBasePath();
+                const response = await fetch(`${basePath}/api/keycloak/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('User deleted successfully!');
+                    hideEditUserModal();
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    alert('Error deleting user: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Load users and groups on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadUsers();
+            loadGroups();
+        });
+    </script>
+</body>
+</html>

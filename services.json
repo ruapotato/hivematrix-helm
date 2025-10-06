@@ -53,5 +53,13 @@
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
+  },
+  "template": {
+    "url": "http://localhost:5040",
+    "path": "../hivematrix-template",
+    "port": 5040,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
   }
 }

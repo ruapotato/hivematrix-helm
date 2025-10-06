@@ -167,3 +167,16 @@ def apps_management():
         'apps.html',
         user=g.user
     )
+
+
+@app.route('/users')
+@admin_required
+def users_management():
+    """User and group management page for Keycloak"""
+    if g.is_service_call:
+        return {'error': 'This endpoint is for users only'}, 403
+
+    return render_template(
+        'users.html',
+        user=g.user
+    )
