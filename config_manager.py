@@ -144,11 +144,14 @@ class ConfigManager:
                 lines.append(f"DB_NAME={config['app']['db_name']}")
 
         # Add service URLs
+        # Use production HTTPS URL for Nexus in production mode
+        nexus_url = "https://localhost" if config['system']['environment'] == 'production' else "http://localhost:8000"
+
         lines.extend([
             f"",
             f"# Service URLs",
             f"CORE_SERVICE_URL=http://localhost:5000",
-            f"NEXUS_SERVICE_URL=http://localhost:8000",
+            f"NEXUS_SERVICE_URL={nexus_url}",
         ])
 
         return "\n".join(lines) + "\n"
