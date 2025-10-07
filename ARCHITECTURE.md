@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.1**
+**Version 3.2**
 
 ## 1. Core Philosophy & Goals
 
@@ -22,22 +22,40 @@ Each module in HiveMatrix (e.g., `Resolve`, `Architect`, `Codex`) is a **self-co
 
 ## 3. End-to-End Authentication Flow
 
-The platform operates on a centralized login model orchestrated by `Core` and `Nexus`. No service handles user credentials directly.
+The platform operates on a centralized login model orchestrated by `Core` and `Nexus`. No service handles user credentials directly. All authentication flows through Keycloak, and sessions are managed by Core with revocation support.
 
-1.  **Initial Request:** A user navigates to a protected resource, e.g., `http://nexus/codex/`.
-2.  **Auth Check:** `Nexus` checks the user's session. If no valid session token exists, it stores the target URL (`/codex/`) and redirects the user to `Core` for login.
-3.  **Keycloak Login:** `Core` immediately redirects the user to the Keycloak login page.
-4.  **Callback to Core:** After successful login, Keycloak redirects the user back to `Core`'s `/auth` callback with an authorization code.
-5.  **Token Minting:** `Core` exchanges the code for a Keycloak token, extracts the user info (including group membership for permission levels), and then **mints its own, internal HiveMatrix JWT**. This token is signed with `Core`'s private RSA key and includes:
-    - User identity (sub, name, email, preferred_username)
-    - Permission level (admin, technician, billing, or client) - derived from Keycloak groups
-    - Group membership
-    - Standard JWT claims (iss, iat, exp)
-6.  **Callback to Nexus:** `Core` redirects the user back to `Nexus`'s `/auth-callback`, passing the new HiveMatrix JWT as a URL parameter.
-7.  **Session Creation:** `Nexus` fetches `Core`'s public key from its `/.well-known/jwks.json` endpoint, verifies the JWT's signature and claims, and securely stores the token in the user's session.
-8.  **Final Redirect:** `Nexus` redirects the user to their originally requested URL (`/codex/`).
-9.  **Proxied & Authenticated Request:** Now logged in, `Nexus` proxies the request to the `Codex` service, adding the user's JWT in the `Authorization: Bearer <token>` header.
-10. **Backend Verification:** The `Codex` service receives the request, fetches `Core`'s public key, verifies the JWT, and then processes the request, returning the protected HTML.
+### Initial Login Flow
+
+1.  **Initial Request:** A user navigates to `https://your-server/` (Nexus on port 443).
+2.  **Auth Check:** `Nexus` checks the user's session. If no valid session token exists, it stores the target URL and redirects to the login endpoint.
+3.  **Keycloak Proxy:** The user is redirected to `/keycloak/realms/hivematrix/protocol/openid-connect/auth`. Nexus proxies this to the local Keycloak server (port 8080) with proper X-Forwarded headers.
+4.  **Keycloak Login:** User enters credentials on the Keycloak login page (proxied through Nexus).
+5.  **OAuth Callback:** After successful login, Keycloak redirects to `https://your-server/keycloak-callback` with an authorization code.
+6.  **Token Exchange:** `Nexus` receives the callback and:
+    - Exchanges the authorization code for Keycloak access token (using backend localhost:8080 connection)
+    - Calls `Core`'s `/api/token/exchange` endpoint with the Keycloak access token
+7.  **Session Creation:** `Core` receives the Keycloak token and:
+    - Validates it with Keycloak's userinfo endpoint
+    - Extracts user info and group membership
+    - Determines permission level from Keycloak groups
+    - **Creates a server-side session** with a unique session ID
+    - **Mints a HiveMatrix JWT** signed with Core's private RSA key containing:
+      - User identity (sub, name, email, preferred_username)
+      - Permission level (admin, technician, billing, or client)
+      - Group membership
+      - **jti (JWT ID)** - The session ID for revocation tracking
+      - Standard JWT claims (iss, iat, exp)
+      - 1-hour expiration (exp)
+    - Stores session in memory with TTL (Time To Live)
+8.  **JWT to Nexus:** `Core` returns the HiveMatrix JWT to `Nexus`.
+9.  **Session Storage:** `Nexus` stores the JWT in the user's Flask session cookie.
+10. **Final Redirect:** `Nexus` redirects the user to their originally requested URL.
+11. **Authenticated Access:** For subsequent requests:
+    - `Nexus` retrieves the JWT from the session
+    - Validates the JWT signature using Core's public key
+    - **Checks with Core** that the session (jti) hasn't been revoked
+    - If valid, proxies the request to backend services with `Authorization: Bearer <token>` header
+12. **Backend Verification:** Backend services verify the JWT using Core's public key at `/.well-known/jwks.json`.
 
 ### Permission Levels
 
@@ -49,6 +67,101 @@ HiveMatrix supports four permission levels, determined by Keycloak group members
 - **client**: Default level for users not in any special group - limited access
 
 Services can access the user's permission level via `g.user.get('permission_level')` and enforce authorization using the `@admin_required` decorator or custom permission checks.
+
+### Session Management & Logout Flow
+
+HiveMatrix implements **revokable sessions** with automatic expiration to ensure proper security.
+
+#### Session Lifecycle
+
+**Session Creation:**
+- When a user logs in, `Core` creates a server-side session with:
+  - Unique session ID (stored as `jti` in the JWT)
+  - User data (sub, name, email, permission_level, groups)
+  - Creation timestamp (`created_at`)
+  - Expiration timestamp (`expires_at`) - 1 hour from creation
+  - Revocation flag (`revoked`) - initially false
+
+**Session Validation:**
+- On each request, `Nexus` calls `Core`'s `/api/token/validate` endpoint
+- `Core` checks:
+  1. JWT signature is valid
+  2. JWT has not expired (exp claim)
+  3. Session ID (jti) exists in the session store
+  4. Session has not expired (expires_at)
+  5. Session has not been revoked (revoked flag)
+- If any check fails, the session is invalid and the user must re-authenticate
+
+**Session Expiration:**
+- Sessions automatically expire after 1 hour
+- Expired sessions are removed from memory during cleanup
+- Users must log in again after expiration
+
+#### Logout Flow
+
+1. **User Clicks Logout:** User navigates to `/logout` endpoint on Nexus
+2. **Retrieve Token:** Nexus retrieves the JWT from the user's session
+3. **Revoke at Core:** Nexus calls `Core`'s `/api/token/revoke` with the JWT:
+   ```
+   POST /api/token/revoke
+   {
+     "token": "<jwt_token>"
+   }
+   ```
+4. **Mark as Revoked:** Core:
+   - Decodes the JWT to extract session ID (jti)
+   - Marks the session as revoked in the session store
+   - Returns success response
+5. **Clear Client State:** Nexus:
+   - Clears the server-side Flask session
+   - Returns HTML that clears browser storage and cookies
+   - Redirects to home page
+6. **Re-authentication Required:** Next request to any protected page:
+   - Nexus has no session → redirects to login
+   - OR if somehow a token is still cached → Core validation fails (session revoked)
+
+#### Core Session Manager
+
+The `SessionManager` class in `hivematrix-core/app/session_manager.py` provides:
+
+```python
+class SessionManager:
+    def create_session(user_data) -> session_id
+    def validate_session(session_id) -> user_data or None
+    def revoke_session(session_id) -> bool
+    def cleanup_expired() -> count
+```
+
+**Production Note:** The current implementation uses in-memory storage. For production deployments with multiple Core instances, sessions should be stored in Redis or a database for shared state.
+
+### Core API Endpoints
+
+**Token Exchange:**
+```
+POST /api/token/exchange
+Body: { "access_token": "<keycloak_access_token>" }
+Response: { "token": "<hivematrix_jwt>" }
+```
+
+**Token Validation:**
+```
+POST /api/token/validate
+Body: { "token": "<hivematrix_jwt>" }
+Response: { "valid": true, "user": {...} } or { "valid": false, "error": "..." }
+```
+
+**Token Revocation:**
+```
+POST /api/token/revoke
+Body: { "token": "<hivematrix_jwt>" }
+Response: { "message": "Session revoked successfully" }
+```
+
+**Public Key (JWKS):**
+```
+GET /.well-known/jwks.json
+Response: { "keys": [{ "kty": "RSA", "kid": "...", ... }] }
+```
 
 ## 4. Service-to-Service Communication
 
@@ -625,5 +738,6 @@ Every service must have:
 
 ## 12. Version History
 
+- **3.2** - Added revokable session management, logout flow, token validation, Keycloak proxy on port 443
 - **3.1** - Added service-to-service communication, permission levels, database best practices, external integrations
 - **3.0** - Initial version with core architecture patterns
