@@ -345,11 +345,15 @@ fi
 
 # Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
-NEXUS_PYTHON="$PARENT_DIR/hivematrix-nexus/pyenv/bin/python3"
 
-if [ -f "$NEXUS_PYTHON" ]; then
+# Get the real Python binary (following symlinks)
+NEXUS_VENV_PYTHON="$PARENT_DIR/hivematrix-nexus/pyenv/bin/python3"
+if [ -f "$NEXUS_VENV_PYTHON" ]; then
+    REAL_PYTHON=$(readlink -f "$NEXUS_VENV_PYTHON")
+    echo -e "${YELLOW}  Detected Python: $REAL_PYTHON${NC}"
+
     # Check if capability is already set
-    CURRENT_CAP=$(getcap "$NEXUS_PYTHON" 2>/dev/null)
+    CURRENT_CAP=$(getcap "$REAL_PYTHON" 2>/dev/null)
     if echo "$CURRENT_CAP" | grep -q "cap_net_bind_service"; then
         echo -e "${GREEN}  ✓ Port 443 binding already enabled${NC}"
     else
@@ -357,16 +361,27 @@ if [ -f "$NEXUS_PYTHON" ]; then
         if ! sudo -n true 2>/dev/null; then
             echo -e "${YELLOW}  Sudo password required to enable port 443 binding...${NC}"
         fi
-        # Grant capability to bind privileged ports
-        if sudo setcap 'cap_net_bind_service=+ep' "$NEXUS_PYTHON" 2>/dev/null; then
-            echo -e "${GREEN}  ✓ Port 443 binding enabled${NC}"
+        # Grant capability to bind privileged ports on the real binary
+        if sudo setcap 'cap_net_bind_service=+ep' "$REAL_PYTHON" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ setcap applied to $REAL_PYTHON${NC}"
+
+            # Test if it actually works
+            echo -e "${YELLOW}  Testing port 443 binding...${NC}"
+            cd "$PARENT_DIR/hivematrix-nexus"
+            if timeout 3 "$REAL_PYTHON" -c "import socket; s=socket.socket(); s.bind(('0.0.0.0', 443)); s.close(); print('OK')" 2>/dev/null | grep -q OK; then
+                echo -e "${GREEN}  ✓ Port 443 binding test successful${NC}"
+            else
+                echo -e "${YELLOW}  ✗ Port 443 binding test failed${NC}"
+                echo -e "${YELLOW}  Nexus will fall back to port 8000${NC}"
+            fi
+            cd "$SCRIPT_DIR"
         else
             echo -e "${YELLOW}  ✗ Could not set capabilities (setcap failed)${NC}"
             echo -e "${YELLOW}  Nexus will run on port 8000 instead${NC}"
         fi
     fi
 else
-    echo -e "${YELLOW}  ✗ Nexus Python binary not found at: $NEXUS_PYTHON${NC}"
+    echo -e "${YELLOW}  ✗ Nexus Python binary not found at: $NEXUS_VENV_PYTHON${NC}"
     echo -e "${YELLOW}  Skipping port 443 setup - Nexus will run on port 8000${NC}"
 fi
 
