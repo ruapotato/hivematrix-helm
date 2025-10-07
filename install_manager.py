@@ -328,8 +328,10 @@ class InstallManager:
             app_info = self.registry['core_apps'].get(app_key) or \
                       self.registry['default_apps'].get(app_key)
             if app_info:
+                # Nexus uses HTTPS on port 443, other services use HTTP
+                protocol = "https" if app_key == "nexus" and app_info['port'] == 443 else "http"
                 service_config = {
-                    "url": f"http://localhost:{app_info['port']}",
+                    "url": f"{protocol}://localhost:{app_info['port']}",
                     "path": f"../hivematrix-{app_key}",
                     "port": app_info['port'],
                     "python_bin": "pyenv/bin/python",
