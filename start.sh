@@ -340,21 +340,34 @@ else
     source pyenv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
+    deactivate
 fi
 
-# Setup setcap for port 443 binding
+# Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
 NEXUS_PYTHON="$PARENT_DIR/hivematrix-nexus/pyenv/bin/python3"
+
 if [ -f "$NEXUS_PYTHON" ]; then
-    # Check if we need sudo
-    if ! sudo -n true 2>/dev/null; then
-        echo -e "${YELLOW}  Sudo password required to enable port 443 binding...${NC}"
+    # Check if capability is already set
+    CURRENT_CAP=$(getcap "$NEXUS_PYTHON" 2>/dev/null)
+    if echo "$CURRENT_CAP" | grep -q "cap_net_bind_service"; then
+        echo -e "${GREEN}  ✓ Port 443 binding already enabled${NC}"
+    else
+        # Check if we need sudo
+        if ! sudo -n true 2>/dev/null; then
+            echo -e "${YELLOW}  Sudo password required to enable port 443 binding...${NC}"
+        fi
+        # Grant capability to bind privileged ports
+        if sudo setcap 'cap_net_bind_service=+ep' "$NEXUS_PYTHON" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Port 443 binding enabled${NC}"
+        else
+            echo -e "${YELLOW}  ✗ Could not set capabilities (setcap failed)${NC}"
+            echo -e "${YELLOW}  Nexus will run on port 8000 instead${NC}"
+        fi
     fi
-    # Grant capability to bind privileged ports
-    sudo setcap 'cap_net_bind_service=+ep' "$NEXUS_PYTHON"
-    echo -e "${GREEN}  ✓ Port 443 binding enabled${NC}"
 else
-    echo -e "${YELLOW}  Warning: Could not find Nexus Python binary${NC}"
+    echo -e "${YELLOW}  ✗ Nexus Python binary not found at: $NEXUS_PYTHON${NC}"
+    echo -e "${YELLOW}  Skipping port 443 setup - Nexus will run on port 8000${NC}"
 fi
 
 cd "$SCRIPT_DIR"
