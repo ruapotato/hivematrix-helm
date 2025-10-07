@@ -230,6 +230,7 @@ class ServiceManager:
                 if service_name == 'nexus':
                     env['NEXUS_PORT'] = '443'
                     env['NEXUS_HOST'] = '0.0.0.0'
+                    port = 443  # Update port variable for database storage
 
                 # Load .flaskenv file if it exists
                 flaskenv_path = os.path.join(abs_path, '.flaskenv')
