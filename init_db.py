@@ -89,6 +89,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {db_user};
         # Try to get existing password from config
         instance_dir = Path(__file__).parent / "instance"
         config_file = instance_dir / "helm.conf"
+        password_found = False
+
         if config_file.exists():
             config = configparser.ConfigParser()
             config.read(config_file)
@@ -100,8 +102,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO {db_user};
                 if match:
                     db_password = match.group(1)
                     print(f"  ✓ Using existing password from config")
+                    password_found = True
             except:
                 pass
+
+        # If we couldn't get the password from config, update PostgreSQL with new password
+        if not password_found:
+            print("  ✓ Config not found, updating database password...")
+            update_sql = f"ALTER USER {db_user} WITH PASSWORD '{db_password}';"
+            run_command(f"sudo -u postgres psql <<'EOF'\n{update_sql}\nEOF\n")
+            print(f"  ✓ Database password updated")
 
     return db_name, db_user, db_password
 
