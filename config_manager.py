@@ -37,7 +37,8 @@ class ConfigManager:
                 "system": {
                     "environment": "development",
                     "log_level": "INFO",
-                    "secret_key": os.urandom(24).hex()
+                    "secret_key": os.urandom(24).hex(),
+                    "hostname": "localhost"
                 },
                 "keycloak": {
                     "url": "http://localhost:8080",
@@ -145,7 +146,11 @@ class ConfigManager:
 
         # Add service URLs
         # Use production HTTPS URL for Nexus in production mode
-        nexus_url = "https://localhost" if config['system']['environment'] == 'production' else "http://localhost:8000"
+        hostname = config['system'].get('hostname', 'localhost')
+        if config['system']['environment'] == 'production':
+            nexus_url = f"https://{hostname}"
+        else:
+            nexus_url = "http://localhost:8000"
 
         lines.extend([
             f"",
