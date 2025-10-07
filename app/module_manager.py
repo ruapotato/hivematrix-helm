@@ -262,6 +262,30 @@ class ModuleManager:
             else:
                 log("Note: No install.sh found, skipping")
 
+            # Verify pyenv was created
+            log(f"\n=== Verifying Installation ===")
+            pyenv_path = target_dir / 'pyenv'
+            if pyenv_path.exists():
+                log("✓ Python virtual environment (pyenv) created")
+
+                # Check if python exists in pyenv
+                python_bin = pyenv_path / 'bin' / 'python'
+                if python_bin.exists():
+                    log(f"✓ Python binary found at {python_bin}")
+                else:
+                    log(f"WARNING: Python binary not found in pyenv")
+            else:
+                log("WARNING: pyenv directory not found")
+                log("  This may cause issues when starting the service")
+                log("  The install.sh script may not have run correctly")
+
+            # Check for run.py
+            run_script = target_dir / 'run.py'
+            if run_script.exists():
+                log("✓ run.py found")
+            else:
+                log("WARNING: run.py not found - service may not start")
+
             # Register in services.json
             log(f"\n=== Registering service ===")
             ModuleManager.register_service(module_id, port, visible)
@@ -430,7 +454,7 @@ class ModuleManager:
 
     @staticmethod
     def register_service(module_id, port, visible=True):
-        """Add a module to services.json"""
+        """Add a module to services.json with full configuration"""
         helm_dir = Path(__file__).parent.parent
         services_file = helm_dir / 'services.json'
 
@@ -442,16 +466,21 @@ class ModuleManager:
             else:
                 services = {}
 
-            # Add new service
+            # Add new service with full configuration
             services[module_id] = {
                 "url": f"http://localhost:{port}",
+                "path": f"../hivematrix-{module_id}",
                 "port": port,
+                "python_bin": "pyenv/bin/python",
+                "run_script": "run.py",
                 "visible": visible
             }
 
             # Save
             with open(services_file, 'w') as f:
                 json.dump(services, f, indent=4)
+
+            print(f"  ✓ Registered {module_id} with full service configuration")
 
         except Exception as e:
             print(f"Warning: Could not register service: {e}")
