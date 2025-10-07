@@ -56,8 +56,8 @@ def check_required_services():
             else:
                 print("✗ Nexus service is NOT healthy")
                 all_running = False
-        except requests.RequestException:
-            print("✗ Nexus service is NOT running")
+        except requests.RequestException as e:
+            print(f"✗ Nexus service is NOT running: {e}")
             all_running = False
 
     print("\n" + "-"*60)
