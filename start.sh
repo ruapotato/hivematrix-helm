@@ -348,21 +348,23 @@ cd "$PARENT_DIR/hivematrix-nexus"
 if [ -f "install.sh" ]; then
     chmod +x install.sh
     ./install.sh
+    # Ensure gunicorn is installed after install.sh
+    source pyenv/bin/activate
+    if ! pip show gunicorn > /dev/null 2>&1; then
+        echo -e "${YELLOW}  Installing gunicorn...${NC}"
+        pip install gunicorn==21.2.0
+    fi
+    deactivate
 else
     python3 -m venv pyenv
     source pyenv/bin/activate
     pip install --upgrade pip
     pip install -r requirements.txt
-    deactivate
-fi
-
-# Ensure gunicorn is installed in Nexus venv
-source pyenv/bin/activate
-if ! pip show gunicorn > /dev/null 2>&1; then
+    # Install gunicorn
     echo -e "${YELLOW}  Installing gunicorn...${NC}"
     pip install gunicorn==21.2.0
+    deactivate
 fi
-deactivate
 
 # Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
