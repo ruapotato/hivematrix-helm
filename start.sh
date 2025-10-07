@@ -519,7 +519,7 @@ set +e
 
 # Configure Keycloak for proxy mode
 echo -e "${YELLOW}Configuring Keycloak proxy settings...${NC}"
-KEYCLOAK_CONF_FILE="$PARENT_DIR/keycloak/conf/keycloak.conf"
+KEYCLOAK_CONF_FILE="$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}/conf/keycloak.conf"
 if [ -f "$KEYCLOAK_CONF_FILE" ]; then
     # Backup original if not already backed up
     if [ ! -f "$KEYCLOAK_CONF_FILE.bak" ]; then

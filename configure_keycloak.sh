@@ -10,6 +10,9 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Load Keycloak version from config file
+source "$SCRIPT_DIR/keycloak_version.conf"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -28,7 +31,7 @@ echo "  Configuring Keycloak for Proxy Mode"
 echo "================================================================"
 echo ""
 
-KEYCLOAK_CONF_FILE="$PARENT_DIR/keycloak/conf/keycloak.conf"
+KEYCLOAK_CONF_FILE="$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}/conf/keycloak.conf"
 if [ -f "$KEYCLOAK_CONF_FILE" ]; then
     echo -e "${YELLOW}Updating Keycloak proxy configuration...${NC}"
 
