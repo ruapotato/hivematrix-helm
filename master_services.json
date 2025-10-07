@@ -12,7 +12,7 @@
     "port": 5000
   },
   "nexus": {
-    "url": "http://localhost:443",
+    "url": "https://localhost:443",
     "port": 443
   },
   "codex": {

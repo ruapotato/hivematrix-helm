@@ -346,6 +346,23 @@ fi
 # Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
 
+# Generate SSL certificates if they don't exist
+NEXUS_CERT_DIR="$PARENT_DIR/hivematrix-nexus/certs"
+mkdir -p "$NEXUS_CERT_DIR"
+
+if [ ! -f "$NEXUS_CERT_DIR/nexus.crt" ] || [ ! -f "$NEXUS_CERT_DIR/nexus.key" ]; then
+    echo -e "${YELLOW}  Generating self-signed SSL certificate...${NC}"
+    openssl req -x509 -newkey rsa:4096 -nodes \
+        -keyout "$NEXUS_CERT_DIR/nexus.key" \
+        -out "$NEXUS_CERT_DIR/nexus.crt" \
+        -days 365 -subj "/CN=localhost/O=HiveMatrix/C=US" 2>/dev/null
+    chmod 600 "$NEXUS_CERT_DIR/nexus.key"
+    chmod 644 "$NEXUS_CERT_DIR/nexus.crt"
+    echo -e "${GREEN}  ✓ SSL certificate generated${NC}"
+else
+    echo -e "${GREEN}  ✓ SSL certificate already exists${NC}"
+fi
+
 # Get the real Python binary (following symlinks)
 NEXUS_VENV_PYTHON="$PARENT_DIR/hivematrix-nexus/pyenv/bin/python3"
 if [ -f "$NEXUS_VENV_PYTHON" ]; then
@@ -641,7 +658,7 @@ echo "================================================================"
 echo -e "${GREEN}  HiveMatrix is Ready!${NC}"
 echo "================================================================"
 echo ""
-echo -e "  ${BLUE}Login URL:${NC}         ${CYAN}http://localhost:443${NC}"
+echo -e "  ${BLUE}Login URL:${NC}         ${CYAN}https://localhost:443${NC}"
 echo -e "  ${BLUE}Helm Dashboard:${NC}    http://localhost:5004"
 echo ""
 echo -e "  ${YELLOW}Default Login:${NC}"

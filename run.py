@@ -50,7 +50,10 @@ def check_required_services():
     if nexus_config:
         print(f"\nChecking Nexus service at {nexus_config['url']}/health...")
         try:
-            response = requests.get(f"{nexus_config['url']}/health", timeout=3)
+            # Disable SSL verification for self-signed certificates
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(f"{nexus_config['url']}/health", timeout=3, verify=False)
             if response.status_code == 200:
                 print("✓ Nexus service is running")
             else:
