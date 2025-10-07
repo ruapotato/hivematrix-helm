@@ -23,9 +23,9 @@
     "visible": true
   },
   "nexus": {
-    "url": "http://localhost:8000",
+    "url": "https://localhost:443",
     "path": "../hivematrix-nexus",
-    "port": 8000,
+    "port": 443,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
