@@ -522,11 +522,24 @@ DETECTED_IP=$(hostname -I | awk '{print $1}')
 
 # Read hostname from master config
 MASTER_CONFIG="$SCRIPT_DIR/instance/configs/master_config.json"
-if [ -f "$MASTER_CONFIG" ]; then
-    CONFIGURED_HOSTNAME=$(python3 -c "import json; print(json.load(open('$MASTER_CONFIG')).get('system', {}).get('hostname', 'localhost'))")
-else
-    CONFIGURED_HOSTNAME="localhost"
+
+# Ensure config directory exists
+mkdir -p "$SCRIPT_DIR/instance/configs"
+
+# Create default master config if it doesn't exist
+if [ ! -f "$MASTER_CONFIG" ]; then
+    cat > "$MASTER_CONFIG" <<EOF
+{
+  "system": {
+    "hostname": "localhost",
+    "environment": "development"
+  }
+}
+EOF
 fi
+
+# Read configured hostname
+CONFIGURED_HOSTNAME=$(python3 -c "import json; print(json.load(open('$MASTER_CONFIG')).get('system', {}).get('hostname', 'localhost'))")
 
 # Always use detected IP if available (allows for IP changes)
 if [ -n "$DETECTED_IP" ]; then
