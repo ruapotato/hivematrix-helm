@@ -226,11 +226,11 @@ class ServiceManager:
                 else:
                     env['FLASK_ENV'] = 'production'
 
-                # Special handling for Nexus: set port 443 and use waitress when started via Helm
+                # Special handling for Nexus: set port 443 and use gunicorn when started via Helm
                 if service_name == 'nexus':
                     env['NEXUS_PORT'] = '443'
                     env['NEXUS_HOST'] = '0.0.0.0'
-                    env['USE_WAITRESS'] = 'true'  # Use production server
+                    env['USE_GUNICORN'] = 'true'  # Use production server with SSL
                     port = 443  # Update port variable for database storage
 
                 # Load .flaskenv file if it exists
