@@ -96,7 +96,7 @@ if [ -n "$CLIENT_EXISTS" ]; then
         "publicClient": false,
         "standardFlowEnabled": true,
         "directAccessGrantsEnabled": false,
-        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*"],
+        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*", "https://localhost/keycloak-callback", "https://127.0.0.1/keycloak-callback", "https://localhost/*", "https://127.0.0.1/*"],
         "webOrigins": ["+"],
         "attributes": {
           "post.logout.redirect.uris": "+"
@@ -115,7 +115,7 @@ else
         "publicClient": false,
         "standardFlowEnabled": true,
         "directAccessGrantsEnabled": false,
-        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*"],
+        "redirectUris": ["http://127.0.0.1:5000/auth", "http://localhost:5000/auth", "http://127.0.0.1:5000/logout-callback", "http://localhost:5000/logout-callback", "http://127.0.0.1:5000/*", "http://localhost:5000/*", "https://localhost/keycloak-callback", "https://127.0.0.1/keycloak-callback", "https://localhost/*", "https://127.0.0.1/*"],
         "webOrigins": ["+"],
         "attributes": {
           "post.logout.redirect.uris": "+"
