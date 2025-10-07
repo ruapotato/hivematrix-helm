@@ -226,6 +226,11 @@ class ServiceManager:
                 else:
                     env['FLASK_ENV'] = 'production'
 
+                # Special handling for Nexus: set port 443 when started via Helm
+                if service_name == 'nexus':
+                    env['NEXUS_PORT'] = '443'
+                    env['NEXUS_HOST'] = '0.0.0.0'
+
                 # Load .flaskenv file if it exists
                 flaskenv_path = os.path.join(abs_path, '.flaskenv')
                 if os.path.exists(flaskenv_path):

@@ -341,6 +341,22 @@ else
     pip install --upgrade pip
     pip install -r requirements.txt
 fi
+
+# Setup setcap for port 443 binding
+echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
+NEXUS_PYTHON="$PARENT_DIR/hivematrix-nexus/pyenv/bin/python3"
+if [ -f "$NEXUS_PYTHON" ]; then
+    # Check if we need sudo
+    if ! sudo -n true 2>/dev/null; then
+        echo -e "${YELLOW}  Sudo password required to enable port 443 binding...${NC}"
+    fi
+    # Grant capability to bind privileged ports
+    sudo setcap 'cap_net_bind_service=+ep' "$NEXUS_PYTHON"
+    echo -e "${GREEN}  ✓ Port 443 binding enabled${NC}"
+else
+    echo -e "${YELLOW}  Warning: Could not find Nexus Python binary${NC}"
+fi
+
 cd "$SCRIPT_DIR"
 echo -e "${GREEN}✓ Nexus installed${NC}"
 echo ""
@@ -597,7 +613,7 @@ echo "================================================================"
 echo -e "${GREEN}  HiveMatrix is Ready!${NC}"
 echo "================================================================"
 echo ""
-echo -e "  ${BLUE}Login URL:${NC}         ${CYAN}http://localhost:8000${NC}"
+echo -e "  ${BLUE}Login URL:${NC}         ${CYAN}https://localhost:443${NC}"
 echo -e "  ${BLUE}Helm Dashboard:${NC}    http://localhost:5004"
 echo ""
 echo -e "  ${YELLOW}Default Login:${NC}"
