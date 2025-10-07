@@ -3,8 +3,21 @@
 # HiveMatrix Helm - Unified Startup & Installation Script
 # Handles fresh Ubuntu installations and starts all services
 #
+# Usage: ./start.sh [--dev]
+#   --dev: Use Flask development server instead of Gunicorn
+#
 
 set -e  # Exit on error initially
+
+# Parse arguments
+DEV_MODE=false
+if [[ "$1" == "--dev" ]]; then
+    DEV_MODE=true
+    export HIVEMATRIX_DEV_MODE=true
+    echo "Development mode: Using Flask dev server"
+else
+    export HIVEMATRIX_DEV_MODE=false
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -342,6 +355,14 @@ else
     pip install -r requirements.txt
     deactivate
 fi
+
+# Ensure gunicorn is installed in Nexus venv
+source pyenv/bin/activate
+if ! pip show gunicorn > /dev/null 2>&1; then
+    echo -e "${YELLOW}  Installing gunicorn...${NC}"
+    pip install gunicorn==21.2.0
+fi
+deactivate
 
 # Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"

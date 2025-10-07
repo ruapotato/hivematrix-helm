@@ -221,16 +221,22 @@ class ServiceManager:
 
                 # Set environment for the service
                 env = os.environ.copy()
-                if mode == 'development':
+
+                # Check if we're in dev mode from start.sh
+                dev_mode = os.environ.get('HIVEMATRIX_DEV_MODE', 'false').lower() == 'true'
+
+                if mode == 'development' or dev_mode:
                     env['FLASK_ENV'] = 'development'
                 else:
                     env['FLASK_ENV'] = 'production'
 
-                # Special handling for Nexus: set port 443 and use gunicorn when started via Helm
+                # Special handling for Nexus: set port 443 and use gunicorn (unless dev mode)
                 if service_name == 'nexus':
                     env['NEXUS_PORT'] = '443'
                     env['NEXUS_HOST'] = '0.0.0.0'
-                    env['USE_GUNICORN'] = 'true'  # Use production server with SSL
+                    # Use gunicorn by default in production mode
+                    if not dev_mode:
+                        env['USE_GUNICORN'] = 'true'
                     port = 443  # Update port variable for database storage
 
                 # Load .flaskenv file if it exists
