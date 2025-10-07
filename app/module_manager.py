@@ -162,18 +162,26 @@ class ModuleManager:
         return available
 
     @staticmethod
-    def install_module(module_id_or_url, port=None):
+    def install_module(module_id_or_url, port=None, log_callback=None):
         """
         Install a module from git.
 
         Args:
             module_id_or_url: Either an official module ID or a git URL
             port: Port number (required if using custom URL)
+            log_callback: Function to call with log messages (optional)
 
         Returns:
-            tuple: (success: bool, message: str, module_id: str)
+            tuple: (success: bool, message: str, module_id: str, logs: list)
         """
         modules_dir = ModuleManager.get_modules_dir()
+        logs = []
+
+        def log(msg):
+            logs.append(msg)
+            print(msg)
+            if log_callback:
+                log_callback(msg)
 
         # Check if it's an official module
         if module_id_or_url in ModuleManager.OFFICIAL_MODULES:
@@ -189,7 +197,7 @@ class ModuleManager:
             module_id = git_url.rstrip('/').split('/')[-1].replace('.git', '').replace('hivematrix-', '')
 
             if not port:
-                return False, "Port number required for custom modules", None
+                return False, "Port number required for custom modules", None, logs
 
             visible = True
 
@@ -197,46 +205,99 @@ class ModuleManager:
 
         # Check if already installed
         if target_dir.exists():
-            return False, f"Module '{module_id}' is already installed", module_id
+            return False, f"Module '{module_id}' is already installed", module_id, logs
 
         try:
             # Clone the repository
-            print(f"Cloning {git_url} to {target_dir}...")
+            log(f"=== Cloning {module_id} ===")
+            log(f"URL: {git_url}")
+            log(f"Target: {target_dir}")
+
             result = subprocess.run(
                 ['git', 'clone', git_url, str(target_dir)],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120
             )
 
             if result.returncode != 0:
-                return False, f"Git clone failed: {result.stderr}", None
+                log(f"ERROR: Git clone failed")
+                log(result.stderr)
+                return False, f"Git clone failed: {result.stderr}", None, logs
+
+            log("✓ Repository cloned successfully")
 
             # Run install.sh if it exists
             install_script = target_dir / 'install.sh'
             if install_script.exists():
-                print(f"Running install script for {module_id}...")
-                subprocess.run(
+                log(f"\n=== Running install.sh ===")
+
+                # Make sure it's executable
+                os.chmod(str(install_script), 0o755)
+
+                result = subprocess.run(
                     ['bash', str(install_script)],
                     cwd=str(target_dir),
+                    capture_output=True,
+                    text=True,
                     timeout=300
                 )
 
-            # Register in services.json
-            ModuleManager.register_service(module_id, port, visible)
+                # Log stdout
+                if result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if line.strip():
+                            log(line)
 
-            return True, f"Module '{module_id}' installed successfully", module_id
+                # Log stderr
+                if result.stderr:
+                    for line in result.stderr.split('\n'):
+                        if line.strip():
+                            log(f"STDERR: {line}")
+
+                if result.returncode != 0:
+                    log(f"WARNING: install.sh exited with code {result.returncode}")
+                else:
+                    log("✓ Install script completed successfully")
+            else:
+                log("Note: No install.sh found, skipping")
+
+            # Register in services.json
+            log(f"\n=== Registering service ===")
+            ModuleManager.register_service(module_id, port, visible)
+            log(f"✓ Registered {module_id} on port {port}")
+
+            # Reload Helm's service configuration
+            log("\n=== Reloading configuration ===")
+            try:
+                from flask import current_app
+                services_file = Path(__file__).parent.parent / 'services.json'
+                if services_file.exists():
+                    with open(services_file, 'r') as f:
+                        services = json.load(f)
+                        current_app.config['SERVICES'] = services
+                    log("✓ Helm configuration reloaded")
+            except Exception as e:
+                log(f"WARNING: Could not reload config: {e}")
+
+            log(f"\n=== Installation Complete ===")
+            log(f"Module '{module_id}' is now installed")
+            log(f"Start the service from the main dashboard")
+
+            return True, f"Module '{module_id}' installed successfully", module_id, logs
 
         except subprocess.TimeoutExpired:
+            log("ERROR: Installation timed out")
             # Cleanup on timeout
             if target_dir.exists():
                 shutil.rmtree(target_dir)
-            return False, "Installation timed out", None
+            return False, "Installation timed out", None, logs
         except Exception as e:
+            log(f"ERROR: Installation failed: {str(e)}")
             # Cleanup on error
             if target_dir.exists():
                 shutil.rmtree(target_dir)
-            return False, f"Installation failed: {str(e)}", None
+            return False, f"Installation failed: {str(e)}", None, logs
 
     @staticmethod
     def remove_module(module_id):
@@ -280,19 +341,27 @@ class ModuleManager:
             module_id: The module identifier
 
         Returns:
-            tuple: (success: bool, message: str)
+            tuple: (success: bool, message: str, logs: list)
         """
         modules_dir = ModuleManager.get_modules_dir()
         target_dir = modules_dir / f'hivematrix-{module_id}'
+        logs = []
+
+        def log(msg):
+            logs.append(msg)
+            print(msg)
 
         if not target_dir.exists():
-            return False, f"Module '{module_id}' is not installed"
+            return False, f"Module '{module_id}' is not installed", logs
 
         if not (target_dir / '.git').exists():
-            return False, f"Module '{module_id}' is not a git repository"
+            return False, f"Module '{module_id}' is not a git repository", logs
 
         try:
             # Git pull
+            log(f"=== Updating {module_id} ===")
+            log(f"Running git pull...")
+
             result = subprocess.run(
                 ['git', '-C', str(target_dir), 'pull'],
                 capture_output=True,
@@ -300,23 +369,64 @@ class ModuleManager:
                 timeout=60
             )
 
+            # Log git output
+            if result.stdout:
+                for line in result.stdout.split('\n'):
+                    if line.strip():
+                        log(line)
+
             if result.returncode != 0:
-                return False, f"Git pull failed: {result.stderr}"
+                log(f"ERROR: Git pull failed")
+                if result.stderr:
+                    log(result.stderr)
+                return False, f"Git pull failed: {result.stderr}", logs
+
+            log("✓ Repository updated successfully")
 
             # Run install.sh if it exists
             install_script = target_dir / 'install.sh'
             if install_script.exists():
-                print(f"Running install script for {module_id}...")
-                subprocess.run(
+                log(f"\n=== Running install.sh ===")
+
+                # Make sure it's executable
+                os.chmod(str(install_script), 0o755)
+
+                result = subprocess.run(
                     ['bash', str(install_script)],
                     cwd=str(target_dir),
+                    capture_output=True,
+                    text=True,
                     timeout=300
                 )
 
-            return True, f"Module '{module_id}' updated successfully"
+                # Log stdout
+                if result.stdout:
+                    for line in result.stdout.split('\n'):
+                        if line.strip():
+                            log(line)
+
+                # Log stderr
+                if result.stderr:
+                    for line in result.stderr.split('\n'):
+                        if line.strip():
+                            log(f"STDERR: {line}")
+
+                if result.returncode != 0:
+                    log(f"WARNING: install.sh exited with code {result.returncode}")
+                else:
+                    log("✓ Install script completed successfully")
+            else:
+                log("Note: No install.sh found, skipping")
+
+            log(f"\n=== Update Complete ===")
+            log(f"Module '{module_id}' has been updated")
+            log(f"Restart the service from the main dashboard if needed")
+
+            return True, f"Module '{module_id}' updated successfully", logs
 
         except Exception as e:
-            return False, f"Update failed: {str(e)}"
+            log(f"ERROR: Update failed: {str(e)}")
+            return False, f"Update failed: {str(e)}", logs
 
     @staticmethod
     def register_service(module_id, port, visible=True):

@@ -212,9 +212,14 @@ def install_module():
     if not module_id_or_url:
         return jsonify({'success': False, 'message': 'Module ID or Git URL required'}), 400
 
-    success, message, module_id = ModuleManager.install_module(module_id_or_url, port)
+    success, message, module_id, logs = ModuleManager.install_module(module_id_or_url, port)
 
-    return jsonify({'success': success, 'message': message, 'module_id': module_id})
+    return jsonify({
+        'success': success,
+        'message': message,
+        'module_id': module_id,
+        'logs': logs
+    })
 
 
 @app.route('/api/modules/<module_id>/remove', methods=['POST'])
@@ -229,5 +234,5 @@ def remove_module(module_id):
 @admin_required
 def update_module(module_id):
     """Update a module from git"""
-    success, message = ModuleManager.update_module(module_id)
-    return jsonify({'success': success, 'message': message})
+    success, message, logs = ModuleManager.update_module(module_id)
+    return jsonify({'success': success, 'message': message, 'logs': logs})
