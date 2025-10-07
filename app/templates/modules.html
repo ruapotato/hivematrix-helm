@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module Management - Helm</title>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card__header">
+                <h1 class="card__title">Module Management</h1>
+                <p>Install, update, and manage HiveMatrix modules</p>
+            </div>
+        </div>
+
+        <!-- Available Modules -->
+        {% if available %}
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">📦 Available Modules</h2>
+                <p>Official HiveMatrix modules ready to install</p>
+            </div>
+            <div class="card__body">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Description</th>
+                            <th>Port</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for module in available %}
+                        <tr>
+                            <td><strong>{{ module.name }}</strong></td>
+                            <td>{{ module.description }}</td>
+                            <td>{{ module.port }}</td>
+                            <td>
+                                <button class="btn btn--small btn--primary" onclick="installModule('{{ module.id }}')">
+                                    <span class="btn__label">Install</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Installed Modules -->
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">✓ Installed Modules</h2>
+                <p>Currently installed modules</p>
+            </div>
+            <div class="card__body">
+                {% if installed %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Description</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for module in installed %}
+                        <tr>
+                            <td><strong>{{ module.name }}</strong></td>
+                            <td>{{ module.description }}</td>
+                            <td>
+                                {% if module.is_official %}
+                                    <span class="badge badge--success">Official</span>
+                                {% else %}
+                                    <span class="badge badge--info">Custom</span>
+                                {% endif %}
+                                {% if module.is_git %}
+                                    <span class="badge badge--info">Git</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if module.is_git %}
+                                <button class="btn btn--small" onclick="updateModule('{{ module.id }}')">
+                                    <span class="btn__label">Update</span>
+                                </button>
+                                {% endif %}
+                                <button class="btn btn--small btn--danger" onclick="removeModule('{{ module.id }}')">
+                                    <span class="btn__label">Remove</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No modules installed yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Install Custom Module -->
+        <div class="card">
+            <div class="card__header">
+                <h2 class="card__title">🔧 Install Custom Module</h2>
+                <p>Install a module from a Git URL</p>
+            </div>
+            <div class="card__body">
+                <form id="customModuleForm" onsubmit="installCustomModule(event)">
+                    <div style="margin-bottom: 1rem;">
+                        <label for="gitUrl">Git Repository URL:</label>
+                        <input type="text" id="gitUrl" name="gitUrl" placeholder="https://github.com/user/hivematrix-mymodule.git" required style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <label for="port">Port Number:</label>
+                        <input type="number" id="port" name="port" placeholder="5050" min="5000" max="9999" required style="width: 200px; padding: 0.5rem; margin-top: 0.5rem;">
+                    </div>
+                    <button type="submit" class="btn btn--primary">
+                        <span class="btn__label">Install Custom Module</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Back to Dashboard -->
+        <div class="card">
+            <div class="card__body">
+                <a href="#" onclick="navigateTo('/'); return false;" class="btn">
+                    <span class="btn__label">← Back to Dashboard</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        function installModule(moduleId) {
+            if (!confirm(`Install module '${moduleId}'? This will clone the repository and run the install script.`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+            const btn = event.target.closest('button');
+            const originalText = btn.querySelector('.btn__label').textContent;
+            btn.querySelector('.btn__label').textContent = 'Installing...';
+            btn.disabled = true;
+
+            fetch(`${basePath}/api/modules/install`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ module_id: moduleId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Success: ${data.message}\n\nModule installed. You can now start it from the dashboard.`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.message}`);
+                    btn.querySelector('.btn__label').textContent = originalText;
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert(`Error: ${error}`);
+                btn.querySelector('.btn__label').textContent = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        function removeModule(moduleId) {
+            if (!confirm(`Remove module '${moduleId}'? This will delete the entire module directory.\n\nThis action cannot be undone!`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+
+            fetch(`${basePath}/api/modules/${moduleId}/remove`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Success: ${data.message}`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                alert(`Error: ${error}`);
+            });
+        }
+
+        function updateModule(moduleId) {
+            if (!confirm(`Update module '${moduleId}' from git? This will run 'git pull' and re-run the install script.`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+            const btn = event.target.closest('button');
+            const originalText = btn.querySelector('.btn__label').textContent;
+            btn.querySelector('.btn__label').textContent = 'Updating...';
+            btn.disabled = true;
+
+            fetch(`${basePath}/api/modules/${moduleId}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Success: ${data.message}\n\nYou may need to restart the service for changes to take effect.`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.message}`);
+                    btn.querySelector('.btn__label').textContent = originalText;
+                    btn.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert(`Error: ${error}`);
+                btn.querySelector('.btn__label').textContent = originalText;
+                btn.disabled = false;
+            });
+        }
+
+        function installCustomModule(event) {
+            event.preventDefault();
+
+            const gitUrl = document.getElementById('gitUrl').value;
+            const port = document.getElementById('port').value;
+
+            if (!confirm(`Install custom module from:\n${gitUrl}\nPort: ${port}\n\nContinue?`)) {
+                return;
+            }
+
+            const basePath = getBasePath();
+            const form = event.target;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.querySelector('.btn__label').textContent;
+            submitBtn.querySelector('.btn__label').textContent = 'Installing...';
+            submitBtn.disabled = true;
+
+            fetch(`${basePath}/api/modules/install`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    git_url: gitUrl,
+                    port: parseInt(port)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Success: ${data.message}\n\nModule installed. You can now start it from the dashboard.`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.message}`);
+                    submitBtn.querySelector('.btn__label').textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                alert(`Error: ${error}`);
+                submitBtn.querySelector('.btn__label').textContent = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>

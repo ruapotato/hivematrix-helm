@@ -111,6 +111,9 @@
                     <span class="btn__label">View Metrics</span>
                 </a>
                 {% if user.permission_level == 'admin' %}
+                <a href="#" onclick="navigateTo('/modules'); return false;" class="btn btn--primary">
+                    <span class="btn__label">📦 Manage Modules</span>
+                </a>
                 <a href="#" onclick="navigateTo('/users'); return false;" class="btn btn--primary">
                     <span class="btn__label">👥 Manage Users</span>
                 </a>

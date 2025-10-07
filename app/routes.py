@@ -2,10 +2,11 @@
 Web UI routes for Helm dashboard
 """
 
-from flask import render_template, g, request, redirect, url_for, flash
+from flask import render_template, g, request, redirect, url_for, flash, jsonify
 from app import app
 from app.auth import token_required, admin_required
 from app.service_manager import ServiceManager
+from app.module_manager import ModuleManager
 from models import LogEntry, ServiceStatus
 from datetime import datetime, timedelta
 from sqlalchemy import func
@@ -180,3 +181,53 @@ def users_management():
         'users.html',
         user=g.user
     )
+
+
+@app.route('/modules')
+@admin_required
+def modules_management():
+    """Module installation and management page"""
+    if g.is_service_call:
+        return {'error': 'This endpoint is for users only'}, 403
+
+    installed = ModuleManager.list_installed_modules()
+    available = ModuleManager.list_available_modules()
+
+    return render_template(
+        'modules.html',
+        user=g.user,
+        installed=installed,
+        available=available
+    )
+
+
+@app.route('/api/modules/install', methods=['POST'])
+@admin_required
+def install_module():
+    """Install a module"""
+    data = request.get_json()
+    module_id_or_url = data.get('module_id') or data.get('git_url')
+    port = data.get('port')
+
+    if not module_id_or_url:
+        return jsonify({'success': False, 'message': 'Module ID or Git URL required'}), 400
+
+    success, message, module_id = ModuleManager.install_module(module_id_or_url, port)
+
+    return jsonify({'success': success, 'message': message, 'module_id': module_id})
+
+
+@app.route('/api/modules/<module_id>/remove', methods=['POST'])
+@admin_required
+def remove_module(module_id):
+    """Remove a module"""
+    success, message = ModuleManager.remove_module(module_id)
+    return jsonify({'success': success, 'message': message})
+
+
+@app.route('/api/modules/<module_id>/update', methods=['POST'])
+@admin_required
+def update_module(module_id):
+    """Update a module from git"""
+    success, message = ModuleManager.update_module(module_id)
+    return jsonify({'success': success, 'message': message})
