@@ -292,7 +292,13 @@ if [ -f "$MASTER_CONFIG" ]; then
 import json
 with open('$MASTER_CONFIG', 'r') as f:
     config = json.load(f)
+
+# Ensure keycloak section exists
+if 'keycloak' not in config:
+    config['keycloak'] = {}
+
 config['keycloak']['client_secret'] = '$CLIENT_SECRET'
+
 with open('$MASTER_CONFIG', 'w') as f:
     json.dump(config, f, indent=2)
 EOF
