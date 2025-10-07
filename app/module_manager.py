@@ -13,35 +13,66 @@ from pathlib import Path
 class ModuleManager:
     """Manages HiveMatrix module installation and updates"""
 
+    # Core system modules (cannot be removed)
+    CORE_MODULES = {'core', 'nexus', 'helm'}
+
     # Predefined official modules
     OFFICIAL_MODULES = {
+        'core': {
+            'name': 'Core',
+            'description': 'Authentication & JWT Token Management',
+            'git_url': 'https://github.com/ruapotato/hivematrix-core.git',
+            'port': 5000,
+            'visible': False,
+            'core_system': True
+        },
+        'nexus': {
+            'name': 'Nexus',
+            'description': 'Gateway & Reverse Proxy',
+            'git_url': 'https://github.com/ruapotato/hivematrix-nexus.git',
+            'port': 443,
+            'visible': False,
+            'core_system': True
+        },
+        'helm': {
+            'name': 'Helm',
+            'description': 'Service Manager & Orchestration',
+            'git_url': 'https://github.com/ruapotato/hivematrix-helm.git',
+            'port': 5004,
+            'visible': False,
+            'core_system': True
+        },
         'codex': {
             'name': 'Codex',
             'description': 'Client, Ticket, and Contact Management',
             'git_url': 'https://github.com/ruapotato/hivematrix-codex.git',
             'port': 5010,
-            'visible': True
+            'visible': True,
+            'core_system': False
         },
         'ledger': {
             'name': 'Ledger',
             'description': 'Financial Accounting and Invoicing',
             'git_url': 'https://github.com/ruapotato/hivematrix-ledger.git',
             'port': 5030,
-            'visible': True
+            'visible': True,
+            'core_system': False
         },
         'knowledgetree': {
             'name': 'KnowledgeTree',
             'description': 'Documentation and Knowledge Base',
             'git_url': 'https://github.com/ruapotato/hivematrix-knowledgetree.git',
             'port': 5020,
-            'visible': True
+            'visible': True,
+            'core_system': False
         },
         'template': {
             'name': 'Template',
             'description': 'Template for creating new modules',
             'git_url': 'https://github.com/ruapotato/hivematrix-template.git',
             'port': 5040,
-            'visible': False
+            'visible': False,
+            'core_system': False
         }
     }
 
@@ -53,13 +84,17 @@ class ModuleManager:
 
     @staticmethod
     def list_installed_modules():
-        """List all installed modules"""
+        """List all installed modules (excluding core system for display)"""
         modules_dir = ModuleManager.get_modules_dir()
         installed = []
 
         for item in modules_dir.iterdir():
-            if item.is_dir() and item.name.startswith('hivematrix-') and item.name != 'hivematrix-helm':
+            if item.is_dir() and item.name.startswith('hivematrix-'):
                 module_id = item.name.replace('hivematrix-', '')
+
+                # Skip core system modules in the module management UI
+                if module_id in ModuleManager.CORE_MODULES:
+                    continue
 
                 # Check if it's a git repo
                 is_git = (item / '.git').exists()
@@ -89,19 +124,33 @@ class ModuleManager:
                     'path': str(item),
                     'git_url': git_url,
                     'is_git': is_git,
-                    'is_official': module_id in ModuleManager.OFFICIAL_MODULES
+                    'is_official': module_id in ModuleManager.OFFICIAL_MODULES,
+                    'is_core_system': module_id in ModuleManager.CORE_MODULES
                 })
 
         return installed
 
     @staticmethod
     def list_available_modules():
-        """List official modules that aren't installed"""
+        """List official modules that aren't installed (excluding core system)"""
         installed_ids = {m['id'] for m in ModuleManager.list_installed_modules()}
+        # Also get all installed modules including core to check what's actually there
+        modules_dir = ModuleManager.get_modules_dir()
+        all_installed_ids = {
+            item.name.replace('hivematrix-', '')
+            for item in modules_dir.iterdir()
+            if item.is_dir() and item.name.startswith('hivematrix-')
+        }
+
         available = []
 
         for module_id, info in ModuleManager.OFFICIAL_MODULES.items():
-            if module_id not in installed_ids:
+            # Skip core system modules
+            if module_id in ModuleManager.CORE_MODULES:
+                continue
+
+            # Only show if not installed
+            if module_id not in all_installed_ids:
                 available.append({
                     'id': module_id,
                     'name': info['name'],
@@ -200,9 +249,9 @@ class ModuleManager:
         Returns:
             tuple: (success: bool, message: str)
         """
-        # Don't allow removing core modules
-        if module_id in ['core', 'nexus', 'helm']:
-            return False, f"Cannot remove core module '{module_id}'"
+        # Don't allow removing core system modules
+        if module_id in ModuleManager.CORE_MODULES:
+            return False, f"Cannot remove core system module '{module_id}'"
 
         modules_dir = ModuleManager.get_modules_dir()
         target_dir = modules_dir / f'hivematrix-{module_id}'
