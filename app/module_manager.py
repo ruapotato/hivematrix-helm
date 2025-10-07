@@ -290,19 +290,8 @@ class ModuleManager:
             log(f"\n=== Registering service ===")
             ModuleManager.register_service(module_id, port, visible)
             log(f"✓ Registered {module_id} on port {port}")
-
-            # Reload Helm's service configuration
-            log("\n=== Reloading configuration ===")
-            try:
-                from flask import current_app
-                services_file = Path(__file__).parent.parent / 'services.json'
-                if services_file.exists():
-                    with open(services_file, 'r') as f:
-                        services = json.load(f)
-                        current_app.config['SERVICES'] = services
-                    log("✓ Helm configuration reloaded")
-            except Exception as e:
-                log(f"WARNING: Could not reload config: {e}")
+            log("")
+            log("Note: Services configuration will be reloaded automatically")
 
             log(f"\n=== Installation Complete ===")
             log(f"Module '{module_id}' is now installed")

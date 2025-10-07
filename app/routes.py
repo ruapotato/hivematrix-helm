@@ -214,6 +214,10 @@ def install_module():
 
     success, message, module_id, logs = ModuleManager.install_module(module_id_or_url, port)
 
+    # Reload services configuration so the new module is available
+    if success:
+        ServiceManager.reload_services_config()
+
     return jsonify({
         'success': success,
         'message': message,
@@ -227,6 +231,11 @@ def install_module():
 def remove_module(module_id):
     """Remove a module"""
     success, message = ModuleManager.remove_module(module_id)
+
+    # Reload services configuration after removal
+    if success:
+        ServiceManager.reload_services_config()
+
     return jsonify({'success': success, 'message': message})
 
 

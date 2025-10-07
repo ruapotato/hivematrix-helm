@@ -24,6 +24,26 @@ class ServiceManager:
     """Manages HiveMatrix services"""
 
     @staticmethod
+    def reload_services_config():
+        """Reload services configuration from services.json"""
+        try:
+            helm_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            services_file = os.path.join(helm_dir, 'services.json')
+
+            if os.path.exists(services_file):
+                with open(services_file, 'r') as f:
+                    services = json.load(f)
+                    current_app.config['SERVICES'] = services
+                    print(f"✓ Reloaded services configuration: {list(services.keys())}")
+                    return True
+            else:
+                print("WARNING: services.json not found")
+                return False
+        except Exception as e:
+            print(f"ERROR: Failed to reload services config: {e}")
+            return False
+
+    @staticmethod
     def sync_master_services_config(service_path):
         """
         Syncs the master services configuration to a service's directory.

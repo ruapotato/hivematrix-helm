@@ -20,7 +20,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo "This script will help you verify your Keycloak setup."
+echo -e "${YELLOW}Recommended: Use the automated configuration script:${NC}"
+echo -e "  ${GREEN}./configure_keycloak.sh${NC}"
+echo ""
+echo "This will automatically configure everything for you."
+echo ""
+echo -e "${YELLOW}If you prefer manual setup, follow the instructions below:${NC}"
 echo ""
 echo "To set up Keycloak for HiveMatrix:"
 echo ""
