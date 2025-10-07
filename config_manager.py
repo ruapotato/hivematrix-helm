@@ -104,6 +104,21 @@ class ConfigManager:
         """Generate .flaskenv content for an app"""
         config = self.get_app_config(app_name)
 
+        # Determine Keycloak URL based on environment
+        hostname = config['system'].get('hostname', 'localhost')
+        # Only use HTTPS for actual domain names, not IPs or localhost
+        is_ip_address = hostname.replace('.', '').isdigit()
+
+        if hostname == 'localhost':
+            # For localhost, use direct connection to Keycloak
+            keycloak_url = config['keycloak']['url']
+        elif is_ip_address:
+            # For IP addresses, use HTTPS through Nexus on port 443
+            keycloak_url = f"https://{hostname}/keycloak"
+        else:
+            # For domain names, use HTTPS
+            keycloak_url = f"https://{hostname}/keycloak"
+
         lines = [
             f"FLASK_APP=run.py",
             f"FLASK_ENV={config['system']['environment']}",
@@ -111,7 +126,8 @@ class ConfigManager:
             f"SERVICE_NAME={app_name}",
             f"",
             f"# Keycloak Configuration",
-            f"KEYCLOAK_SERVER_URL={config['keycloak']['url']}",
+            f"KEYCLOAK_SERVER_URL={keycloak_url}",
+            f"KEYCLOAK_BACKEND_URL={config['keycloak']['url']}",
             f"KEYCLOAK_REALM={config['keycloak']['realm']}",
             f"KEYCLOAK_CLIENT_ID={config['keycloak']['client_id']}",
         ]
@@ -145,10 +161,14 @@ class ConfigManager:
                 lines.append(f"DB_NAME={config['app']['db_name']}")
 
         # Add service URLs
-        # Use production HTTPS URL for Nexus in production mode
+        # Use production HTTPS URL for Nexus only with real domain names
         hostname = config['system'].get('hostname', 'localhost')
-        if config['system']['environment'] == 'production':
+        is_ip_address = hostname.replace('.', '').isdigit()
+        if config['system']['environment'] == 'production' and not is_ip_address and hostname != 'localhost':
             nexus_url = f"https://{hostname}"
+        elif hostname != 'localhost':
+            # For IP addresses in production, use HTTP on port 443
+            nexus_url = f"http://{hostname}:443"
         else:
             nexus_url = "http://localhost:8000"
 

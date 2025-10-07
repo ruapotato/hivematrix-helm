@@ -517,12 +517,38 @@ echo ""
 # Disable exit on error for service starts
 set +e
 
+# Auto-detect current IP address
+DETECTED_IP=$(hostname -I | awk '{print $1}')
+
 # Read hostname from master config
 MASTER_CONFIG="$SCRIPT_DIR/instance/configs/master_config.json"
 if [ -f "$MASTER_CONFIG" ]; then
-    HOSTNAME=$(python3 -c "import json; print(json.load(open('$MASTER_CONFIG')).get('system', {}).get('hostname', 'localhost'))")
+    CONFIGURED_HOSTNAME=$(python3 -c "import json; print(json.load(open('$MASTER_CONFIG')).get('system', {}).get('hostname', 'localhost'))")
 else
-    HOSTNAME="localhost"
+    CONFIGURED_HOSTNAME="localhost"
+fi
+
+# Always use detected IP if available (allows for IP changes)
+if [ -n "$DETECTED_IP" ]; then
+    HOSTNAME="$DETECTED_IP"
+
+    # Update master config if IP has changed
+    if [ "$CONFIGURED_HOSTNAME" != "$HOSTNAME" ]; then
+        echo -e "${YELLOW}IP address changed from $CONFIGURED_HOSTNAME to $HOSTNAME${NC}"
+        python3 <<EOF
+import json
+with open('$MASTER_CONFIG', 'r') as f:
+    config = json.load(f)
+config['system']['hostname'] = '$HOSTNAME'
+config['system']['environment'] = 'production'
+with open('$MASTER_CONFIG', 'w') as f:
+    json.dump(config, f, indent=2)
+EOF
+        echo -e "${GREEN}✓ Updated hostname to: $HOSTNAME${NC}"
+        echo -e "${YELLOW}Note: Run ./configure_keycloak.sh to update Keycloak redirect URIs${NC}"
+    fi
+else
+    HOSTNAME="$CONFIGURED_HOSTNAME"
 fi
 
 # Configure Keycloak for proxy mode
