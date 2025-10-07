@@ -5,7 +5,6 @@
 Helm is the operational control center for the HiveMatrix ecosystem. It provides service management, real-time monitoring, centralized logging, and performance metrics collection for all HiveMatrix services.
 
 ---
-
 ## Table of Contents
 
 - [Features](#features)
