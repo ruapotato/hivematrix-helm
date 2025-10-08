@@ -28,39 +28,49 @@ class ConfigManager:
 
     def load_master_config(self):
         """Load master configuration"""
+        # Default configuration
+        defaults = {
+            "system": {
+                "environment": "development",
+                "log_level": "INFO",
+                "secret_key": os.urandom(24).hex(),
+                "hostname": "localhost"
+            },
+            "keycloak": {
+                "url": "http://localhost:8080",
+                "realm": "hivematrix",
+                "client_id": "core-client",
+                "admin_username": "admin",
+                "admin_password": "admin"
+            },
+            "databases": {
+                "postgresql": {
+                    "host": "localhost",
+                    "port": 5432,
+                    "admin_user": "postgres"
+                },
+                "neo4j": {
+                    "uri": "bolt://localhost:7687",
+                    "user": "neo4j",
+                    "password": "password"
+                }
+            },
+            "apps": {}
+        }
+
         if self.master_config_file.exists():
             with open(self.master_config_file, 'r') as f:
-                self.master_config = json.load(f)
+                loaded_config = json.load(f)
+
+            # Merge loaded config with defaults (loaded values take precedence)
+            self.master_config = defaults.copy()
+            for key in loaded_config:
+                if isinstance(loaded_config[key], dict) and key in self.master_config:
+                    self.master_config[key].update(loaded_config[key])
+                else:
+                    self.master_config[key] = loaded_config[key]
         else:
-            # Default configuration
-            self.master_config = {
-                "system": {
-                    "environment": "development",
-                    "log_level": "INFO",
-                    "secret_key": os.urandom(24).hex(),
-                    "hostname": "localhost"
-                },
-                "keycloak": {
-                    "url": "http://localhost:8080",
-                    "realm": "hivematrix",
-                    "client_id": "core-client",
-                    "admin_username": "admin",
-                    "admin_password": "admin"
-                },
-                "databases": {
-                    "postgresql": {
-                        "host": "localhost",
-                        "port": 5432,
-                        "admin_user": "postgres"
-                    },
-                    "neo4j": {
-                        "uri": "bolt://localhost:7687",
-                        "user": "neo4j",
-                        "password": "password"
-                    }
-                },
-                "apps": {}
-            }
+            self.master_config = defaults
             self.save_master_config()
 
     def save_master_config(self):
@@ -104,20 +114,22 @@ class ConfigManager:
         """Generate .flaskenv content for an app"""
         config = self.get_app_config(app_name)
 
-        # Determine Keycloak URL based on environment
+        # Determine hostname and if it's an IP address
         hostname = config['system'].get('hostname', 'localhost')
-        # Only use HTTPS for actual domain names, not IPs or localhost
         is_ip_address = hostname.replace('.', '').isdigit()
 
-        if hostname == 'localhost':
-            # For localhost, use direct connection to Keycloak
-            keycloak_url = config['keycloak']['url']
-        elif is_ip_address:
-            # For IP addresses, use HTTPS through Nexus on port 443
-            keycloak_url = f"https://{hostname}/keycloak"
+        # For Core, always use direct Keycloak connection (backend URL)
+        # Core needs to connect to Keycloak directly for OAuth metadata
+        if app_name == 'core':
+            keycloak_server_url = f"{config['keycloak']['url']}/realms/{config['keycloak']['realm']}"
         else:
-            # For domain names, use HTTPS
-            keycloak_url = f"https://{hostname}/keycloak"
+            # For other services (like Nexus), use proxied URL based on hostname
+            if hostname == 'localhost':
+                keycloak_server_url = config['keycloak']['url']
+            elif is_ip_address:
+                keycloak_server_url = f"https://{hostname}/keycloak"
+            else:
+                keycloak_server_url = f"https://{hostname}/keycloak"
 
         lines = [
             f"FLASK_APP=run.py",
@@ -126,7 +138,7 @@ class ConfigManager:
             f"SERVICE_NAME={app_name}",
             f"",
             f"# Keycloak Configuration",
-            f"KEYCLOAK_SERVER_URL={keycloak_url}",
+            f"KEYCLOAK_SERVER_URL={keycloak_server_url}",
             f"KEYCLOAK_BACKEND_URL={config['keycloak']['url']}",
             f"KEYCLOAK_REALM={config['keycloak']['realm']}",
             f"KEYCLOAK_CLIENT_ID={config['keycloak']['client_id']}",
@@ -161,16 +173,14 @@ class ConfigManager:
                 lines.append(f"DB_NAME={config['app']['db_name']}")
 
         # Add service URLs
-        # Use production HTTPS URL for Nexus only with real domain names
-        hostname = config['system'].get('hostname', 'localhost')
-        is_ip_address = hostname.replace('.', '').isdigit()
-        if config['system']['environment'] == 'production' and not is_ip_address and hostname != 'localhost':
-            nexus_url = f"https://{hostname}"
-        elif hostname != 'localhost':
-            # For IP addresses in production, use HTTP on port 443
-            nexus_url = f"http://{hostname}:443"
-        else:
+        if hostname == 'localhost':
             nexus_url = "http://localhost:8000"
+        elif is_ip_address:
+            # For IP addresses, use HTTPS on port 443 (Nexus with SSL)
+            nexus_url = f"https://{hostname}"
+        else:
+            # For domain names, use HTTPS
+            nexus_url = f"https://{hostname}"
 
         lines.extend([
             f"",
