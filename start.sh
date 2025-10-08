@@ -487,6 +487,19 @@ fi
 echo -e "${GREEN}✓ Keycloak configured${NC}"
 echo ""
 
+# Restart Core if it's running to reload the updated client secret
+if [ -d "pyenv" ]; then
+    source pyenv/bin/activate 2>/dev/null || true
+    CORE_RUNNING=$(python cli.py status 2>/dev/null | grep "^CORE" | grep "running" || true)
+    if [ -n "$CORE_RUNNING" ]; then
+        echo -e "${YELLOW}Restarting Core to reload Keycloak client secret...${NC}"
+        python cli.py restart core 2>/dev/null || true
+        sleep 3
+        echo -e "${GREEN}✓ Core restarted${NC}"
+        echo ""
+    fi
+fi
+
 # === INSTALLATION COMPLETE ===
 echo "================================================================"
 echo -e "${GREEN}  Installation Complete!${NC}"

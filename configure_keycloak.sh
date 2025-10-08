@@ -304,21 +304,24 @@ with open('$MASTER_CONFIG', 'w') as f:
 EOF
     echo -e "${GREEN}✓ Master config updated${NC}"
 
-    # Directly update Core's .flaskenv with client secret
-    CORE_FLASKENV="$PARENT_DIR/hivematrix-core/.flaskenv"
-    if [ -f "$CORE_FLASKENV" ]; then
-        # Remove old client secret if present
-        sed -i '/KEYCLOAK_CLIENT_SECRET/d' "$CORE_FLASKENV"
-        # Add new client secret
-        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
-        echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
-    fi
-
-    # Regenerate .flaskenv files for all apps (for other configs)
+    # Regenerate .flaskenv files for all apps (includes updated client secret from master_config)
     source pyenv/bin/activate
     python config_manager.py write-dotenv core 2>/dev/null || true
     python config_manager.py write-dotenv nexus 2>/dev/null || true
     echo -e "${GREEN}✓ Service configs regenerated${NC}"
+
+    # Double-check and directly update Core's .flaskenv with client secret (in case config_manager missed it)
+    CORE_FLASKENV="$PARENT_DIR/hivematrix-core/.flaskenv"
+    if [ -f "$CORE_FLASKENV" ]; then
+        # Check if client secret is present
+        if ! grep -q "^KEYCLOAK_CLIENT_SECRET=" "$CORE_FLASKENV"; then
+            # Add client secret if missing
+            echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
+            echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
+        else
+            echo -e "${BLUE}✓ Core .flaskenv already has client secret${NC}"
+        fi
+    fi
 else
     echo -e "${YELLOW}⚠ Master config not found at $MASTER_CONFIG${NC}"
 fi
