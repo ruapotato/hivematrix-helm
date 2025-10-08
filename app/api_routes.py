@@ -547,6 +547,69 @@ def remove_user_from_group(user_id, group_id):
 
 
 # ============================================================
+# Security Audit API
+# ============================================================
+
+@app.route('/api/security/audit', methods=['GET'])
+@token_required
+def security_audit():
+    """Run security audit on all services"""
+    if g.is_service_call:
+        return {'error': 'This endpoint is for users only'}, 403
+
+    import sys
+    import os
+
+    # Add security_audit module to path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    try:
+        from security_audit import SecurityAuditor
+
+        auditor = SecurityAuditor()
+        findings = auditor.audit_services()
+
+        return jsonify(findings)
+    except Exception as e:
+        return {'error': f'Security audit failed: {str(e)}'}, 500
+
+
+@app.route('/api/security/firewall-script', methods=['GET'])
+@admin_required
+def generate_firewall_script():
+    """Generate firewall configuration script"""
+    import sys
+    import os
+
+    # Add security_audit module to path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    try:
+        from security_audit import SecurityAuditor
+
+        auditor = SecurityAuditor()
+
+        # Get script type from query param
+        script_type = request.args.get('type', 'ufw')
+
+        if script_type == 'iptables':
+            script = auditor.generate_iptables_rules()
+            filename = 'secure_iptables.sh'
+        else:
+            script = auditor.generate_firewall_rules()
+            filename = 'secure_firewall.sh'
+
+        return jsonify({
+            'success': True,
+            'script': script,
+            'filename': filename,
+            'type': script_type
+        })
+    except Exception as e:
+        return {'error': f'Failed to generate firewall script: {str(e)}'}, 500
+
+
+# ============================================================
 # Health Check
 # ============================================================
 

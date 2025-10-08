@@ -245,3 +245,16 @@ def update_module(module_id):
     """Update a module from git"""
     success, message, logs = ModuleManager.update_module(module_id)
     return jsonify({'success': success, 'message': message, 'logs': logs})
+
+
+@app.route('/security')
+@token_required
+def security_dashboard():
+    """Security audit and firewall configuration dashboard"""
+    if g.is_service_call:
+        return {'error': 'This endpoint is for users only'}, 403
+
+    return render_template(
+        'security.html',
+        user=g.user
+    )

@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helm - HiveMatrix Service Manager</title>
+    <style>
+        .security-banner {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            display: none;
+        }
+        .security-banner.critical {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+        }
+        .security-banner h3 {
+            margin: 0 0 8px 0;
+            color: #856404;
+        }
+        .security-banner.critical h3 {
+            color: #721c24;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -15,6 +36,15 @@
             <div class="card__body">
                 <p>Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
             </div>
+        </div>
+
+        <!-- Security Warning Banner -->
+        <div id="security-banner" class="security-banner">
+            <h3 id="security-banner-title">⚠️ Security Alert</h3>
+            <p id="security-banner-message"></p>
+            <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--danger">
+                <span class="btn__label">🔒 View Security Audit</span>
+            </a>
         </div>
 
         <div class="card">
@@ -104,6 +134,9 @@
                 <h2 class="card__title">Quick Links</h2>
             </div>
             <div class="card__body">
+                <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--primary" style="background-color: #28a745;">
+                    <span class="btn__label">🔒 Security Audit</span>
+                </a>
                 <a href="#" onclick="navigateTo('/logs'); return false;" class="btn btn--primary">
                     <span class="btn__label">View All Logs</span>
                 </a>
@@ -167,6 +200,35 @@
             // For now, we assume Nexus handles auth via session
             return '';
         }
+
+        // Check security status on load
+        function checkSecurityStatus() {
+            const basePath = getBasePath();
+            fetch(`${basePath}/api/security/audit`)
+                .then(response => response.json())
+                .then(data => {
+                    const banner = document.getElementById('security-banner');
+                    const title = document.getElementById('security-banner-title');
+                    const message = document.getElementById('security-banner-message');
+
+                    if (data.exposed_services && data.exposed_services.length > 0) {
+                        banner.classList.add('critical');
+                        banner.style.display = 'block';
+                        title.textContent = '🔴 CRITICAL SECURITY ALERT';
+                        message.textContent = `${data.exposed_services.length} service(s) are exposed to the network and can be accessed externally. This is a security risk!`;
+                    } else if (data.severity === 'low' || data.severity === 'medium') {
+                        banner.style.display = 'block';
+                        title.textContent = '⚠️ Security Warning';
+                        message.textContent = 'Minor security concerns detected. Review the security audit for details.';
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to check security status:', error);
+                });
+        }
+
+        // Run security check on page load
+        window.addEventListener('load', checkSecurityStatus);
 
         // Auto-refresh every 10 seconds
         setTimeout(() => location.reload(), 10000);
