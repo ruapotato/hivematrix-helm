@@ -131,6 +131,9 @@
                     <div id="summary-content" style="text-align: center;">
                         <!-- Populated by JavaScript -->
                     </div>
+                    <div id="firewall-status" style="margin-top: 20px; padding: 16px; border-radius: 8px; background-color: #f8f9fa;">
+                        <!-- Populated by JavaScript -->
+                    </div>
                 </div>
             </div>
 
@@ -156,6 +159,24 @@
                                 <li>Restart affected services</li>
                             </ol>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Firewall Protected Services -->
+            <div id="firewall-protected-section" style="display: none;">
+                <div class="card">
+                    <div class="card__header" style="background-color: #28a745; color: white;">
+                        <h2 class="card__title">🛡️ FIREWALL PROTECTED</h2>
+                    </div>
+                    <div class="card__body">
+                        <div class="alert-box alert-success">
+                            <strong>✓ Protected by Firewall</strong>
+                            <p>These services are exposed on the network but external access is blocked by firewall rules.</p>
+                        </div>
+                        <ul id="firewall-protected-list" class="service-list">
+                            <!-- Populated by JavaScript -->
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -337,6 +358,7 @@ sudo ufw status
             const totalServices = findings.exposed_services.length +
                                  findings.secure_services.length +
                                  findings.firewall_required.length +
+                                 findings.firewall_protected.length +
                                  findings.not_running.length +
                                  findings.unknown_services.length;
 
@@ -346,6 +368,31 @@ sudo ufw status
                 <p>Overall Severity: <span class="severity-badge severity-${severity.toLowerCase()}">${severity}</span></p>
                 <p>Services Checked: ${totalServices}</p>
             `;
+
+            // Display firewall status
+            const firewallStatus = document.getElementById('firewall-status');
+            if (findings.firewall_status && findings.firewall_status.active) {
+                const protectedPorts = findings.firewall_status.protected_ports.sort((a, b) => a - b).join(', ');
+                firewallStatus.innerHTML = `
+                    <h4 style="margin: 0 0 8px 0;">🛡️ Firewall Status</h4>
+                    <p style="margin: 0;">
+                        <strong>Status:</strong> ✓ Active (${findings.firewall_status.type.toUpperCase()})<br>
+                        <strong>Protected Ports:</strong> ${protectedPorts}
+                    </p>
+                `;
+                firewallStatus.style.backgroundColor = '#d4edda';
+                firewallStatus.style.border = '1px solid #c3e6cb';
+            } else {
+                firewallStatus.innerHTML = `
+                    <h4 style="margin: 0 0 8px 0;">⚠️ Firewall Status</h4>
+                    <p style="margin: 0; color: #856404;">
+                        <strong>Status:</strong> ✗ Not detected or inactive<br>
+                        Firewall protection is recommended for production deployments.
+                    </p>
+                `;
+                firewallStatus.style.backgroundColor = '#fff3cd';
+                firewallStatus.style.border = '1px solid #ffc107';
+            }
 
             // Display exposed services
             if (findings.exposed_services && findings.exposed_services.length > 0) {
@@ -360,6 +407,21 @@ sudo ufw status
                 `).join('');
             } else {
                 document.getElementById('exposed-section').style.display = 'none';
+            }
+
+            // Display firewall-protected services
+            if (findings.firewall_protected && findings.firewall_protected.length > 0) {
+                document.getElementById('firewall-protected-section').style.display = 'block';
+                const protectedList = document.getElementById('firewall-protected-list');
+                protectedList.innerHTML = findings.firewall_protected.map(svc => `
+                    <li class="secure">
+                        <strong>${svc.service.toUpperCase()}</strong> - Port ${svc.port}<br>
+                        <span style="color: #28a745;">🛡️ Binding: ${svc.binding}</span><br>
+                        <small>${svc.info}</small>
+                    </li>
+                `).join('');
+            } else {
+                document.getElementById('firewall-protected-section').style.display = 'none';
             }
 
             // Display firewall-required services

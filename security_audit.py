@@ -38,6 +38,88 @@ class SecurityAuditor:
     def __init__(self, helm_dir: str = None):
         self.helm_dir = Path(helm_dir) if helm_dir else Path(__file__).parent
         self.parent_dir = self.helm_dir.parent
+        self.firewall_status = self.check_firewall_status()
+
+    def check_firewall_status(self) -> Dict:
+        """
+        Check if firewall is active and protecting ports
+        Returns dict with firewall status and protected ports
+        """
+        status = {
+            'active': False,
+            'type': None,  # 'ufw', 'iptables', or None
+            'protected_ports': []
+        }
+
+        # Check UFW
+        try:
+            result = subprocess.run(
+                ['sudo', 'ufw', 'status'],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+
+            if 'Status: active' in result.stdout:
+                status['active'] = True
+                status['type'] = 'ufw'
+
+                # Parse UFW output to find denied ports
+                for line in result.stdout.split('\n'):
+                    if 'DENY' in line:
+                        # Extract port number from lines like "5000/tcp    DENY    Anywhere"
+                        parts = line.split()
+                        if parts and '/' in parts[0]:
+                            port_str = parts[0].split('/')[0]
+                            try:
+                                port = int(port_str)
+                                if port not in status['protected_ports']:
+                                    status['protected_ports'].append(port)
+                            except ValueError:
+                                pass
+
+                return status
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # Check iptables
+        try:
+            result = subprocess.run(
+                ['sudo', 'iptables', '-L', 'INPUT', '-n'],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+
+            # Check if there are any DROP/REJECT rules
+            if 'DROP' in result.stdout or 'REJECT' in result.stdout:
+                status['active'] = True
+                status['type'] = 'iptables'
+
+                # Parse iptables to find blocked ports
+                for line in result.stdout.split('\n'):
+                    if ('DROP' in line or 'REJECT' in line) and 'dpt:' in line:
+                        # Extract port from "tcp dpt:5000"
+                        for part in line.split():
+                            if part.startswith('dpt:'):
+                                try:
+                                    port = int(part.split(':')[1])
+                                    if port not in status['protected_ports']:
+                                        status['protected_ports'].append(port)
+                                except (ValueError, IndexError):
+                                    pass
+
+                return status
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        return status
+
+    def is_port_firewalled(self, port: int) -> bool:
+        """Check if a specific port is protected by firewall"""
+        return self.firewall_status['active'] and port in self.firewall_status['protected_ports']
 
     def check_port_binding(self, port: int) -> Tuple[bool, str]:
         """
@@ -87,8 +169,10 @@ class SecurityAuditor:
             'exposed_services': [],
             'secure_services': [],
             'firewall_required': [],
+            'firewall_protected': [],
             'not_running': [],
             'unknown_services': [],
+            'firewall_status': self.firewall_status,
             'severity': 'none'  # none, low, medium, high, critical
         }
 
@@ -137,15 +221,25 @@ class SecurityAuditor:
                     'status': 'secure (localhost)'
                 })
             else:
-                # Exposed but acceptable if firewalled
-                findings['firewall_required'].append({
-                    'service': service_name,
-                    'port': port,
-                    'binding': binding,
-                    'status': 'NEEDS FIREWALL',
-                    'severity': 'medium',
-                    'issue': f'{service_name} is listening on {binding} - must be protected by firewall'
-                })
+                # Exposed - check if protected by firewall
+                if self.is_port_firewalled(port):
+                    findings['firewall_protected'].append({
+                        'service': service_name,
+                        'port': port,
+                        'binding': binding,
+                        'status': 'PROTECTED BY FIREWALL',
+                        'severity': 'none',
+                        'info': f'{service_name} is on {binding} but blocked by {self.firewall_status["type"]} firewall'
+                    })
+                else:
+                    findings['firewall_required'].append({
+                        'service': service_name,
+                        'port': port,
+                        'binding': binding,
+                        'status': 'NEEDS FIREWALL',
+                        'severity': 'medium',
+                        'issue': f'{service_name} is listening on {binding} - must be protected by firewall'
+                    })
 
         # Check public services
         for service_name, port in self.PUBLIC_SERVICES.items():
@@ -293,11 +387,19 @@ class SecurityAuditor:
         total_checked = (len(findings['exposed_services']) +
                         len(findings['secure_services']) +
                         len(findings['firewall_required']) +
+                        len(findings['firewall_protected']) +
                         len(findings['not_running']) +
                         len(findings['unknown_services']))
 
         print(f"Services Checked: {total_checked}")
         print(f"Overall Severity: {findings['severity'].upper()}")
+
+        # Show firewall status
+        if findings['firewall_status']['active']:
+            print(f"Firewall: ✓ Active ({findings['firewall_status']['type'].upper()})")
+            print(f"Protected Ports: {', '.join(map(str, sorted(findings['firewall_status']['protected_ports'])))}")
+        else:
+            print("Firewall: ✗ Not detected or inactive")
         print("")
 
         # Exposed services (CRITICAL)
@@ -307,6 +409,16 @@ class SecurityAuditor:
             for svc in findings['exposed_services']:
                 print(f"  ✗ {svc['service'].upper():15} Port {svc['port']:5} → {svc['binding']}")
                 print(f"    Issue: {svc['issue']}")
+            print("")
+
+        # Firewall-protected services
+        if findings['firewall_protected']:
+            print("🛡️ FIREWALL PROTECTED")
+            print("-" * 80)
+            for svc in findings['firewall_protected']:
+                print(f"  🛡️ {svc['service'].upper():15} Port {svc['port']:5} → {svc['binding']}")
+                print(f"    Status: {svc['status']}")
+                print(f"    Info: {svc['info']}")
             print("")
 
         # Firewall-required services

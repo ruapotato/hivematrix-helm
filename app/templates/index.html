@@ -225,6 +225,7 @@
                         title.textContent = '⚠️ Security Warning';
                         message.textContent = 'Minor security concerns detected. Review the security audit for details.';
                     }
+                    // If firewall is active and protecting services, no banner needed
                 })
                 .catch(error => {
                     console.error('Failed to check security status:', error);
