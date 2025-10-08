@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.3**
+**Version 3.4**
 
 ## 1. Core Philosophy & Goals
 
@@ -990,7 +990,136 @@ python config_manager.py sync-all
 
 Or restart the platform with `./start.sh` which automatically syncs configs.
 
-## 9. Design System & BEM Classes
+## 9. Security Architecture
+
+HiveMatrix follows a **zero-trust internal network model** where only the Nexus gateway should be accessible externally. All other services operate on localhost and are accessed through the Nexus proxy.
+
+### Security Principles
+
+1. **Single Entry Point**: Only port 443 (Nexus with HTTPS) should be exposed externally
+2. **Localhost Binding**: All backend services (Core, Keycloak, apps) bind to 127.0.0.1
+3. **Proxy Access**: All services are accessed via Nexus proxy with authentication
+4. **Firewall Protection**: Host firewall blocks direct access to internal services
+5. **Automated Auditing**: Security checks run automatically on startup
+
+### Service Binding Requirements
+
+**Backend Services (bind to localhost only):**
+```python
+# Correct - secure binding
+app.run(host='127.0.0.1', port=5040)
+```
+
+Services that MUST bind to localhost:
+- Keycloak (8080)
+- Core (5000)
+- Helm (5004)
+- All application services (Codex, Ledger, Template, etc.)
+
+**Frontend Gateway (bind to all interfaces):**
+```python
+# Nexus - public entry point
+app.run(host='0.0.0.0', port=443)
+```
+
+Only Nexus (443) should bind to `0.0.0.0` as it's the authenticated entry point.
+
+### Security Audit Tool
+
+Helm includes a security audit tool that checks service port bindings:
+
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python security_audit.py --audit
+```
+
+This automatically runs during `./start.sh` and reports:
+- ✓ Services properly bound to localhost
+- ✗ Services exposed to network (security risk)
+- ○ Services not running
+
+### Firewall Configuration
+
+Generate and apply firewall rules to block direct access to internal services:
+
+```bash
+# Generate firewall script
+python security_audit.py --generate-firewall
+
+# Apply firewall rules (requires sudo)
+sudo bash secure_firewall.sh
+```
+
+This configures Ubuntu's UFW firewall to:
+- Allow SSH (port 22)
+- Allow HTTPS (port 443 - Nexus)
+- Block all internal service ports from external access
+
+**Alternative with iptables:**
+```bash
+python security_audit.py --generate-iptables
+sudo bash secure_iptables.sh
+```
+
+### Security Checklist
+
+Before deploying to production:
+
+- [ ] Run security audit: `python security_audit.py --audit`
+- [ ] All services bound to localhost (except Nexus on 443)
+- [ ] Firewall configured and enabled
+- [ ] Change default Keycloak admin password
+- [ ] Change default HiveMatrix admin password
+- [ ] Use valid SSL certificate (not self-signed) for Nexus
+- [ ] Review Keycloak security settings
+- [ ] Test external access blocked
+- [ ] Test internal access via Nexus works
+
+### Common Security Issues
+
+**Issue: Service exposed to network**
+
+Symptom: Security audit shows service on `0.0.0.0` instead of `127.0.0.1`
+
+Fix: Update service's `run.py` to bind to localhost:
+```python
+# Change from:
+app.run(host='0.0.0.0', port=5040)
+
+# To:
+app.run(host='127.0.0.1', port=5040)
+```
+
+**Issue: Keycloak exposed**
+
+Keycloak (Java-based) may bind to all interfaces. This is acceptable if protected by firewall. The security audit will flag this - apply firewall rules to block external access:
+```bash
+sudo bash secure_firewall.sh
+```
+
+**Issue: Can't access service after fixing binding**
+
+This is expected behavior! Services on localhost are accessed via:
+- **Internal**: `http://localhost:PORT` (from server)
+- **External**: `https://SERVER_IP:443/service-name` (via Nexus proxy)
+
+Never access services directly by their port. Always use Nexus.
+
+### Production Deployment Security
+
+Additional security measures for production:
+
+1. **SSL Certificates**: Use Let's Encrypt or commercial SSL for Nexus
+2. **Fail2ban**: Protect SSH from brute force attacks
+3. **Rate Limiting**: Configure in Nexus or load balancer
+4. **Security Updates**: Regular system and application updates
+5. **Monitoring**: Log analysis and intrusion detection
+6. **Backups**: Regular encrypted backups of databases and configs
+
+See `SECURITY.md` for detailed security configuration and best practices.
+
+## 10. Design System & BEM Classes
 
 _(This section will be expanded with more components as they are built.)_
 
@@ -1017,7 +1146,7 @@ _(This section will be expanded with more components as they are built.)_
 -   **Label:** Standard `label` element
 -   Styling is provided globally by Nexus
 
-## 10. Database Best Practices
+## 11. Database Best Practices
 
 ### Configuration Storage
 
@@ -1043,7 +1172,7 @@ _(This section will be expanded with more components as they are built.)_
 - Use `db.relationship()` with `back_populates` for bidirectional relationships
 - Add `cascade="all, delete-orphan"` for proper cleanup
 
-## 11. External System Integration
+## 12. External System Integration
 
 ### Sync Scripts
 
@@ -1061,7 +1190,7 @@ Services that integrate with external systems (like Codex with Freshservice and 
 - Never hardcode credentials
 - Provide interactive setup via `init_db.py`
 
-## 12. Common Patterns
+## 13. Common Patterns
 
 ### Service Directory Structure
 
@@ -1107,8 +1236,9 @@ Every service must have:
 - `init_db.py` - Interactive database setup
 - `services.json` - Service discovery
 
-## 13. Version History
+## 14. Version History
 
+- **3.4** - Added comprehensive security architecture, security audit tool (security_audit.py), firewall generation, service binding requirements, and automated security checks in start.sh
 - **3.3** - Added centralized configuration management (config_manager.py), auto-installation architecture (install_manager.py), unified startup script (start.sh), and comprehensive deployment documentation
 - **3.2** - Added revokable session management, logout flow, token validation, Keycloak proxy on port 443
 - **3.1** - Added service-to-service communication, permission levels, database best practices, external integrations

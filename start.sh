@@ -753,6 +753,29 @@ python cli.py status
 
 echo ""
 echo "================================================================"
+echo "  Security Audit"
+echo "================================================================"
+echo ""
+echo -e "${YELLOW}Checking service port bindings...${NC}"
+python security_audit.py --audit
+AUDIT_EXIT_CODE=$?
+
+if [ $AUDIT_EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Security Warning: Some services may be exposed${NC}"
+    echo ""
+    echo "To secure your installation:"
+    echo "  1. Review the security audit above"
+    echo "  2. Generate firewall rules: python security_audit.py --generate-firewall"
+    echo "  3. Apply firewall: sudo bash secure_firewall.sh"
+    echo "  4. See SECURITY.md for more details"
+    echo ""
+else
+    echo -e "${GREEN}✓ All services properly secured${NC}"
+    echo ""
+fi
+
+echo "================================================================"
 echo "  Starting Helm Web Interface"
 echo "================================================================"
 echo ""

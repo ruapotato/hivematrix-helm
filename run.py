@@ -89,4 +89,6 @@ if __name__ == '__main__':
         print("Start required services first, then restart Helm.\n")
         sys.exit(1)
 
-    app.run(host='0.0.0.0', port=5004, debug=True)
+    # Security: Bind to localhost only - Helm should not be exposed externally
+    # Access via Nexus proxy at https://localhost:443/helm
+    app.run(host='127.0.0.1', port=5004, debug=True)
