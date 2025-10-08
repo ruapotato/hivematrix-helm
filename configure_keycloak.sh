@@ -284,7 +284,7 @@ echo -e "${GREEN}✓ Client secret: $CLIENT_SECRET${NC}"
 # Update master config with client secret
 echo ""
 echo "Updating master configuration..."
-MASTER_CONFIG="instance/configs/master_config.json"
+MASTER_CONFIG="$SCRIPT_DIR/instance/configs/master_config.json"
 
 if [ -f "$MASTER_CONFIG" ]; then
     # Use python to update JSON properly
@@ -304,6 +304,9 @@ with open('$MASTER_CONFIG', 'w') as f:
 EOF
     echo -e "${GREEN}✓ Master config updated${NC}"
 
+    # Change to Helm directory for config_manager.py
+    cd "$SCRIPT_DIR"
+
     # Regenerate .flaskenv files for all apps (includes updated client secret from master_config)
     source pyenv/bin/activate
     python config_manager.py write-dotenv core 2>/dev/null || true
@@ -313,14 +316,10 @@ EOF
     # Double-check and directly update Core's .flaskenv with client secret (in case config_manager missed it)
     CORE_FLASKENV="$PARENT_DIR/hivematrix-core/.flaskenv"
     if [ -f "$CORE_FLASKENV" ]; then
-        # Check if client secret is present
-        if ! grep -q "^KEYCLOAK_CLIENT_SECRET=" "$CORE_FLASKENV"; then
-            # Add client secret if missing
-            echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
-            echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
-        else
-            echo -e "${BLUE}✓ Core .flaskenv already has client secret${NC}"
-        fi
+        # Remove old client secret and add new one
+        sed -i '/KEYCLOAK_CLIENT_SECRET/d' "$CORE_FLASKENV"
+        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
+        echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
     fi
 else
     echo -e "${YELLOW}⚠ Master config not found at $MASTER_CONFIG${NC}"
