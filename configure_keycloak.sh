@@ -304,7 +304,17 @@ with open('$MASTER_CONFIG', 'w') as f:
 EOF
     echo -e "${GREEN}✓ Master config updated${NC}"
 
-    # Regenerate .flaskenv files for all apps
+    # Directly update Core's .flaskenv with client secret
+    CORE_FLASKENV="$PARENT_DIR/hivematrix-core/.flaskenv"
+    if [ -f "$CORE_FLASKENV" ]; then
+        # Remove old client secret if present
+        sed -i '/KEYCLOAK_CLIENT_SECRET/d' "$CORE_FLASKENV"
+        # Add new client secret
+        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
+        echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
+    fi
+
+    # Regenerate .flaskenv files for all apps (for other configs)
     source pyenv/bin/activate
     python config_manager.py write-dotenv core 2>/dev/null || true
     python config_manager.py write-dotenv nexus 2>/dev/null || true
