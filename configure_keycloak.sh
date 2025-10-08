@@ -321,6 +321,15 @@ EOF
         echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$CORE_FLASKENV"
         echo -e "${GREEN}✓ Core .flaskenv updated with client secret${NC}"
     fi
+
+    # Also update Nexus's .flaskenv (Nexus does the OAuth token exchange)
+    NEXUS_FLASKENV="$PARENT_DIR/hivematrix-nexus/.flaskenv"
+    if [ -f "$NEXUS_FLASKENV" ]; then
+        # Remove old client secret and add new one
+        sed -i '/KEYCLOAK_CLIENT_SECRET/d' "$NEXUS_FLASKENV"
+        echo "KEYCLOAK_CLIENT_SECRET='$CLIENT_SECRET'" >> "$NEXUS_FLASKENV"
+        echo -e "${GREEN}✓ Nexus .flaskenv updated with client secret${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠ Master config not found at $MASTER_CONFIG${NC}"
 fi
