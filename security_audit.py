@@ -15,13 +15,19 @@ class SecurityAuditor:
 
     # Services that should ONLY be accessible on localhost
     LOCALHOST_ONLY_SERVICES = {
-        'keycloak': 8080,
         'core': 5000,
         'helm': 5004,
         'codex': 5010,
         'ledger': 5030,
         'template': 5040,
         'knowledgetree': 5020,
+    }
+
+    # Services that can be exposed but MUST be protected by firewall
+    # These services may bind to 0.0.0.0 (Java apps, etc.) but external access
+    # should be blocked by firewall rules
+    FIREWALL_PROTECTED_SERVICES = {
+        'keycloak': 8080,  # Java app, binds to 0.0.0.0, block with firewall
     }
 
     # Services that should be accessible on all interfaces
@@ -80,6 +86,7 @@ class SecurityAuditor:
         findings = {
             'exposed_services': [],
             'secure_services': [],
+            'firewall_required': [],
             'not_running': [],
             'unknown_services': [],
             'severity': 'none'  # none, low, medium, high, critical
@@ -110,6 +117,34 @@ class SecurityAuditor:
                     'status': 'EXPOSED',
                     'severity': 'high',
                     'issue': f'{service_name} is listening on {binding} (should be 127.0.0.1 only)'
+                })
+
+        # Check firewall-protected services (can be exposed if firewalled)
+        for service_name, port in self.FIREWALL_PROTECTED_SERVICES.items():
+            is_localhost, binding = self.check_port_binding(port)
+
+            if is_localhost is None:
+                findings['not_running'].append({
+                    'service': service_name,
+                    'port': port,
+                    'status': 'not running'
+                })
+            elif is_localhost:
+                findings['secure_services'].append({
+                    'service': service_name,
+                    'port': port,
+                    'binding': binding,
+                    'status': 'secure (localhost)'
+                })
+            else:
+                # Exposed but acceptable if firewalled
+                findings['firewall_required'].append({
+                    'service': service_name,
+                    'port': port,
+                    'binding': binding,
+                    'status': 'NEEDS FIREWALL',
+                    'severity': 'medium',
+                    'issue': f'{service_name} is listening on {binding} - must be protected by firewall'
                 })
 
         # Check public services
@@ -143,6 +178,8 @@ class SecurityAuditor:
         # Determine overall severity
         if findings['exposed_services']:
             findings['severity'] = 'high'
+        elif findings['firewall_required']:
+            findings['severity'] = 'medium'
         elif findings['unknown_services']:
             findings['severity'] = 'low'
 
@@ -255,6 +292,7 @@ class SecurityAuditor:
         # Summary
         total_checked = (len(findings['exposed_services']) +
                         len(findings['secure_services']) +
+                        len(findings['firewall_required']) +
                         len(findings['not_running']) +
                         len(findings['unknown_services']))
 
@@ -269,6 +307,15 @@ class SecurityAuditor:
             for svc in findings['exposed_services']:
                 print(f"  ✗ {svc['service'].upper():15} Port {svc['port']:5} → {svc['binding']}")
                 print(f"    Issue: {svc['issue']}")
+            print("")
+
+        # Firewall-required services
+        if findings['firewall_required']:
+            print("⚠ FIREWALL PROTECTION REQUIRED")
+            print("-" * 80)
+            for svc in findings['firewall_required']:
+                print(f"  ⚠ {svc['service'].upper():15} Port {svc['port']:5} → {svc['binding']}")
+                print(f"    Status: {svc['status']} - {svc['issue']}")
             print("")
 
         # Secure services
@@ -299,9 +346,9 @@ class SecurityAuditor:
         # Recommendations
         if findings['exposed_services']:
             print("="*80)
-            print("  SECURITY RECOMMENDATIONS")
+            print("  CRITICAL: SECURITY ACTION REQUIRED")
             print("="*80 + "\n")
-            print("❗ ACTION REQUIRED: Some services are exposed to the network!")
+            print("❗ Some services are exposed to the network without protection!")
             print("")
             print("1. Fix Service Bindings:")
             print("   - Update run.py files to bind to '127.0.0.1' instead of '0.0.0.0'")
@@ -314,6 +361,24 @@ class SecurityAuditor:
             print("3. Verify:")
             print("   - Run: python security_audit.py --audit")
             print("   - Check that only Nexus (port 443) is externally accessible")
+            print("")
+        elif findings['firewall_required']:
+            print("="*80)
+            print("  RECOMMENDED: APPLY FIREWALL PROTECTION")
+            print("="*80 + "\n")
+            print("⚠️  Some services can accept external connections.")
+            print("   This is acceptable for Java applications like Keycloak,")
+            print("   but you MUST configure firewall to block external access.")
+            print("")
+            print("Apply Firewall Protection:")
+            print("   1. Generate: python security_audit.py --generate-firewall")
+            print("   2. Review the script: cat secure_firewall.sh")
+            print("   3. Apply: sudo bash secure_firewall.sh")
+            print("")
+            print("After applying firewall:")
+            print("   - External access to internal ports will be blocked")
+            print("   - Only ports 22 (SSH) and 443 (HTTPS) will be accessible")
+            print("   - Run audit again to verify: python security_audit.py --audit")
             print("")
         elif findings['severity'] == 'none':
             print("="*80)

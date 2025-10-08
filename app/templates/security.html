@@ -160,6 +160,32 @@
                 </div>
             </div>
 
+            <!-- Firewall Required Services -->
+            <div id="firewall-section-warn" style="display: none;">
+                <div class="card">
+                    <div class="card__header" style="background-color: #fd7e14; color: white;">
+                        <h2 class="card__title">⚠️ FIREWALL PROTECTION REQUIRED</h2>
+                    </div>
+                    <div class="card__body">
+                        <div class="alert-box alert-warning">
+                            <strong>ℹ️ Acceptable But Must Be Firewalled</strong>
+                            <p>These services (typically Java applications like Keycloak) can listen on 0.0.0.0, but external access MUST be blocked by firewall rules.</p>
+                        </div>
+                        <ul id="firewall-required-list" class="service-list">
+                            <!-- Populated by JavaScript -->
+                        </ul>
+                        <div style="margin-top: 20px;">
+                            <h3>Required Actions:</h3>
+                            <ol>
+                                <li>Download and apply firewall script (see below)</li>
+                                <li>Verify external access is blocked</li>
+                                <li>Test that services are accessible via Nexus</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Secure Services -->
             <div id="secure-section" style="display: none;">
                 <div class="card">
@@ -298,21 +324,31 @@ sudo ufw status
                 icon = '⚠️';
                 iconClass = 'icon-danger';
                 message = 'Security issues detected! Immediate action required.';
-            } else if (severity === 'MEDIUM' || severity === 'LOW') {
+            } else if (severity === 'MEDIUM') {
+                icon = '⚠';
+                iconClass = 'icon-warning';
+                message = 'Firewall protection recommended.';
+            } else if (severity === 'LOW') {
                 icon = '⚠';
                 iconClass = 'icon-warning';
                 message = 'Minor security concerns detected.';
             }
 
+            const totalServices = findings.exposed_services.length +
+                                 findings.secure_services.length +
+                                 findings.firewall_required.length +
+                                 findings.not_running.length +
+                                 findings.unknown_services.length;
+
             summary.innerHTML = `
                 <div class="security-icon ${iconClass}">${icon}</div>
                 <h3>${message}</h3>
                 <p>Overall Severity: <span class="severity-badge severity-${severity.toLowerCase()}">${severity}</span></p>
-                <p>Services Checked: ${findings.exposed_services.length + findings.secure_services.length + findings.not_running.length + findings.unknown_services.length}</p>
+                <p>Services Checked: ${totalServices}</p>
             `;
 
             // Display exposed services
-            if (findings.exposed_services.length > 0) {
+            if (findings.exposed_services && findings.exposed_services.length > 0) {
                 document.getElementById('exposed-section').style.display = 'block';
                 const exposedList = document.getElementById('exposed-list');
                 exposedList.innerHTML = findings.exposed_services.map(svc => `
@@ -324,6 +360,21 @@ sudo ufw status
                 `).join('');
             } else {
                 document.getElementById('exposed-section').style.display = 'none';
+            }
+
+            // Display firewall-required services
+            if (findings.firewall_required && findings.firewall_required.length > 0) {
+                document.getElementById('firewall-section-warn').style.display = 'block';
+                const firewallList = document.getElementById('firewall-required-list');
+                firewallList.innerHTML = findings.firewall_required.map(svc => `
+                    <li class="warning">
+                        <strong>${svc.service.toUpperCase()}</strong> - Port ${svc.port}<br>
+                        <span style="color: #fd7e14;">⚠ Binding: ${svc.binding}</span><br>
+                        <small>${svc.issue}</small>
+                    </li>
+                `).join('');
+            } else {
+                document.getElementById('firewall-section-warn').style.display = 'none';
             }
 
             // Display secure services

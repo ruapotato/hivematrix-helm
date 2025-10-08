@@ -216,7 +216,11 @@
                         banner.style.display = 'block';
                         title.textContent = '🔴 CRITICAL SECURITY ALERT';
                         message.textContent = `${data.exposed_services.length} service(s) are exposed to the network and can be accessed externally. This is a security risk!`;
-                    } else if (data.severity === 'low' || data.severity === 'medium') {
+                    } else if (data.firewall_required && data.firewall_required.length > 0) {
+                        banner.style.display = 'block';
+                        title.textContent = '⚠️ Firewall Protection Recommended';
+                        message.textContent = `${data.firewall_required.length} service(s) should be protected by firewall. This is normal for Java apps like Keycloak. Click to apply firewall rules.`;
+                    } else if (data.severity === 'low') {
                         banner.style.display = 'block';
                         title.textContent = '⚠️ Security Warning';
                         message.textContent = 'Minor security concerns detected. Review the security audit for details.';
