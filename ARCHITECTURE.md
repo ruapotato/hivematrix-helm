@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.2**
+**Version 3.3**
 
 ## 1. Core Philosophy & Goals
 
@@ -286,13 +286,259 @@ app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAM
 
 This allows services to generate correct URLs using Flask's `url_for()` when accessed through Nexus.
 
-## 6. AI Instructions for Building a New Service
+## 6. Configuration Management & Auto-Installation
+
+HiveMatrix uses a centralized configuration system managed by `hivematrix-helm`. All service configurations are generated and synchronized from Helm's master configuration.
+
+### Configuration Manager (`config_manager.py`)
+
+The `ConfigManager` class in `hivematrix-helm/config_manager.py` is responsible for:
+
+- **Master Configuration Storage**: Maintains `instance/configs/master_config.json` with system-wide settings
+- **Per-App Configuration Generation**: Generates `.flaskenv` and `instance/[app].conf` files for each service
+- **Centralized Settings**: Ensures consistent Keycloak URLs, hostnames, and service URLs across all apps
+
+#### Master Configuration Structure
+
+```json
+{
+  "system": {
+    "hostname": "localhost",
+    "environment": "development",
+    "secret_key": "<generated>",
+    "log_level": "INFO"
+  },
+  "keycloak": {
+    "url": "http://localhost:8080",
+    "realm": "hivematrix",
+    "client_id": "core-client",
+    "client_secret": "<generated>",
+    "admin_username": "admin",
+    "admin_password": "admin"
+  },
+  "databases": {
+    "postgresql": {
+      "host": "localhost",
+      "port": 5432,
+      "admin_user": "postgres"
+    },
+    "neo4j": {
+      "uri": "bolt://localhost:7687",
+      "user": "neo4j",
+      "password": "password"
+    }
+  },
+  "apps": {
+    "template": {
+      "port": 5040,
+      "database": "postgresql",
+      "db_name": "template_db",
+      "db_user": "template_user"
+    }
+  }
+}
+```
+
+#### .flaskenv Generation
+
+The `generate_app_dotenv(app_name)` method creates `.flaskenv` files with:
+
+- **Flask Configuration**: `FLASK_APP`, `FLASK_ENV`, `SECRET_KEY`, `SERVICE_NAME`
+- **Keycloak Configuration**: Automatically adjusts URLs based on hostname (localhost vs production)
+  - For `core`: Direct Keycloak connection (`http://localhost:8080/realms/hivematrix`)
+  - For other services: Proxied URL (`https://hostname/keycloak` or `http://localhost:8080`)
+- **Service URLs**: `CORE_SERVICE_URL`, `NEXUS_SERVICE_URL`
+- **Database Configuration**: `DB_HOST`, `DB_PORT`, `DB_NAME` (if database is configured)
+- **JWT Configuration**: For Core service only - `JWT_PRIVATE_KEY_FILE`, `JWT_PUBLIC_KEY_FILE`, etc.
+
+Example generated `.flaskenv`:
+```
+FLASK_APP=run.py
+FLASK_ENV=development
+SECRET_KEY=abc123...
+SERVICE_NAME=template
+
+# Keycloak Configuration
+KEYCLOAK_SERVER_URL=http://localhost:8080
+KEYCLOAK_BACKEND_URL=http://localhost:8080
+KEYCLOAK_REALM=hivematrix
+KEYCLOAK_CLIENT_ID=core-client
+
+# Service URLs
+CORE_SERVICE_URL=http://localhost:5000
+NEXUS_SERVICE_URL=http://localhost:8000
+```
+
+#### instance/app.conf Generation
+
+The `generate_app_conf(app_name)` method creates ConfigParser-formatted files with:
+
+- **Database Section**: PostgreSQL connection string with credentials
+- **App-Specific Sections**: Custom configuration sections defined in master config
+
+Example generated `instance/template.conf`:
+```ini
+[database]
+connection_string = postgresql://template_user:password@localhost:5432/template_db
+db_host = localhost
+db_port = 5432
+db_name = template_db
+db_user = template_user
+```
+
+#### Configuration Sync
+
+To update all installed apps with current configuration:
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python config_manager.py sync-all
+```
+
+This is automatically called by `start.sh` on each startup to ensure configurations are current.
+
+### Auto-Installation Architecture
+
+HiveMatrix uses a registry-based installation system that allows services to be installed through the Helm web interface.
+
+#### App Registry (`apps_registry.json`)
+
+All installable apps are defined in `hivematrix-helm/apps_registry.json`:
+
+```json
+{
+  "core_apps": {
+    "core": {
+      "name": "HiveMatrix Core",
+      "git_url": "https://github.com/ruapotato/hivematrix-core",
+      "port": 5000,
+      "required": true,
+      "dependencies": ["postgresql"],
+      "install_order": 1
+    }
+  },
+  "default_apps": {
+    "template": {
+      "name": "HiveMatrix Template",
+      "git_url": "https://github.com/ruapotato/hivematrix-template",
+      "port": 5040,
+      "required": false,
+      "dependencies": ["core"],
+      "install_order": 6
+    }
+  }
+}
+```
+
+#### Installation Manager (`install_manager.py`)
+
+The `InstallManager` class handles:
+
+1. **Cloning Apps**: Downloads from git repository
+2. **Running Install Scripts**: Executes `install.sh` if present
+3. **Updating Service Registry**: Adds app to `services.json` for service discovery
+4. **Checking Status**: Monitors git status and available updates
+
+Installation flow:
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python install_manager.py install template
+```
+
+Or via Helm web interface.
+
+#### Required Files for Auto-Installation
+
+For a service to be installable via Helm, it **must** have:
+
+**1. `install.sh`** - Installation script that:
+   - Creates Python virtual environment (`python3 -m venv pyenv`)
+   - Installs dependencies (`pip install -r requirements.txt`)
+   - Creates `instance/` directory
+   - Creates initial `.flaskenv` (will be overwritten by config_manager)
+   - Symlinks `services.json` from Helm directory
+   - Runs any app-specific setup (database creation, etc.)
+
+**2. `requirements.txt`** - Python dependencies:
+   ```
+   Flask==3.0.0
+   python-dotenv==1.0.0
+   PyJWT==2.8.0
+   cryptography==41.0.7
+   SQLAlchemy==2.0.23
+   psycopg2-binary==2.9.9
+   ```
+
+**3. `run.py`** - Application entry point:
+   ```python
+   from app import app
+
+   if __name__ == '__main__':
+       app.run(debug=True, port=5040, host='0.0.0.0')
+   ```
+
+**4. `app/__init__.py`** - Flask app initialization (see Step 1 below)
+
+**5. `services.json` symlink** - Created by install.sh, points to `../hivematrix-helm/services.json`
+
+#### Template install.sh Structure
+
+```bash
+#!/bin/bash
+set -e  # Exit on error
+
+APP_NAME="template"
+APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PARENT_DIR="$(dirname "$APP_DIR")"
+HELM_DIR="$PARENT_DIR/hivematrix-helm"
+
+# Create virtual environment
+python3 -m venv pyenv
+source pyenv/bin/activate
+
+# Upgrade pip and install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Create instance directory
+mkdir -p instance
+
+# Create initial .flaskenv (will be regenerated by config_manager)
+cat > .flaskenv <<EOF
+FLASK_APP=run.py
+FLASK_ENV=development
+SERVICE_NAME=template
+CORE_SERVICE_URL=http://localhost:5000
+HELM_SERVICE_URL=http://localhost:5004
+EOF
+
+# Symlink services.json from Helm
+if [ -d "$HELM_DIR" ] && [ -f "$HELM_DIR/services.json" ]; then
+    ln -sf "$HELM_DIR/services.json" services.json
+fi
+```
+
+#### Updating Other Services
+
+To make existing services installable via Helm:
+
+1. **Add to `apps_registry.json`**: Define the service with git URL, port, and dependencies
+2. **Create `install.sh`**: Follow the template structure above
+3. **Test Installation**: Run `python install_manager.py install <service>`
+4. **Update Config**: Ensure config_manager can generate proper .flaskenv and .conf files
+
+**Current Status**: Template is the only fully working installable service. Codex has an install.sh but may need updates. Other services need install scripts created.
+
+## 7. AI Instructions for Building a New Service
 
 All new services (e.g., `Codex`, `Architect`) **must** be created by copying the `hivematrix-template` project. This ensures all necessary patterns are included.
 
 ### Step 1: Configuration
 
-Every service requires an `app/__init__.py` that explicitly loads its configuration from a `.flaskenv` file. This is mandatory for security and proper function.
+Every service requires an `app/__init__.py` that loads its configuration from environment variables (via `.flaskenv`) and config files (via `instance/[service].conf`).
+
+**Important**: The `.flaskenv` file is **automatically generated** by `config_manager.py` from Helm's master configuration. You should not manually edit `.flaskenv` files, as they will be overwritten on the next config sync.
 
 **File: `[new-service]/app/__init__.py` (Example)**
 
@@ -303,7 +549,8 @@ import os
 
 app = Flask(__name__, instance_relative_config=True)
 
-# --- Explicitly load all required configuration from environment variables ---
+# --- Load all required configuration from environment variables ---
+# These are set in .flaskenv, which is generated by config_manager.py
 app.config['CORE_SERVICE_URL'] = os.environ.get('CORE_SERVICE_URL')
 app.config['SERVICE_NAME'] = os.environ.get('SERVICE_NAME', 'myservice')
 
@@ -311,6 +558,7 @@ if not app.config['CORE_SERVICE_URL']:
     raise ValueError("CORE_SERVICE_URL must be set in the .flaskenv file.")
 
 # Load database connection from config file
+# This file is generated by config_manager.py
 import configparser
 try:
     os.makedirs(app.instance_path)
@@ -328,6 +576,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = config.get('database', 'connection_strin
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Load services configuration for service-to-service calls
+# This is symlinked from hivematrix-helm/services.json
 try:
     with open('services.json') as f:
         services_config = json.load(f)
@@ -346,13 +595,46 @@ app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAM
 from app import routes
 ```
 
-**File: `[new-service]/.flaskenv` (Example)**
+**Configuration Files (Generated by Helm)**
 
+The following files are **automatically generated** by `config_manager.py`:
+
+**`.flaskenv`** - Generated by `config_manager.py generate_app_dotenv(app_name)`
 ```
 FLASK_APP=run.py
 FLASK_ENV=development
-CORE_SERVICE_URL='http://localhost:5000'
-SERVICE_NAME='myservice'
+SECRET_KEY=<auto-generated>
+SERVICE_NAME=myservice
+
+# Keycloak Configuration (auto-adjusted for environment)
+KEYCLOAK_SERVER_URL=http://localhost:8080
+KEYCLOAK_BACKEND_URL=http://localhost:8080
+KEYCLOAK_REALM=hivematrix
+KEYCLOAK_CLIENT_ID=core-client
+
+# Service URLs
+CORE_SERVICE_URL=http://localhost:5000
+NEXUS_SERVICE_URL=http://localhost:8000
+```
+
+**`instance/myservice.conf`** - Generated by `config_manager.py generate_app_conf(app_name)`
+```ini
+[database]
+connection_string = postgresql://myservice_user:password@localhost:5432/myservice_db
+db_host = localhost
+db_port = 5432
+db_name = myservice_db
+db_user = myservice_user
+```
+
+To regenerate these files after updating Helm's master config:
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python config_manager.py write-dotenv myservice
+python config_manager.py write-conf myservice
+# Or sync all apps at once:
+python config_manager.py sync-all
 ```
 
 ### Step 2: Securing Routes
@@ -606,20 +888,109 @@ if __name__ == '__main__':
     init_db()
 ```
 
-## 7. Running the Development Environment
+## 8. Running the Development Environment
 
-To run the full platform, you must start each service in its own terminal on its designated port.
+HiveMatrix provides a unified startup script that handles installation, configuration, and service orchestration.
 
-1.  **Keycloak:** `./kc.sh start-dev` (Runs on port `8080`)
-2.  **Core:** `flask run --port=5000`
-3.  **Nexus:** `flask run --port=8000`
-4.  **Template:** `flask run --port=5001`
-5.  **Codex:** `flask run --port=5010`
-6.  ...and so on for other services.
+### Quick Start
 
-Access the platform through the Nexus URL: `http://localhost:8000`.
+From the `hivematrix-helm` directory:
 
-## 8. Design System & BEM Classes
+```bash
+./start.sh
+```
+
+This script will:
+1. Check and install system dependencies (Python, Git, Java, PostgreSQL)
+2. Download and setup Keycloak
+3. Clone and install Core and Nexus if not present
+4. Setup databases
+5. Configure Keycloak realm and users
+6. Sync configurations to all apps (via `config_manager.py`)
+7. Start all services (Keycloak, Core, Nexus, and any additional installed apps)
+8. Launch Helm web interface on port 5004
+
+### Development Mode
+
+For development with Flask's auto-reload:
+
+```bash
+./start.sh --dev
+```
+
+This uses Flask's development server instead of Gunicorn.
+
+### Manual Service Management
+
+You can also manage services individually using the Helm CLI:
+
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+
+# Start individual services
+python cli.py start keycloak
+python cli.py start core
+python cli.py start nexus
+python cli.py start template
+
+# Check service status
+python cli.py status
+
+# Stop services
+python cli.py stop template
+python cli.py stop nexus
+python cli.py stop core
+python cli.py stop keycloak
+
+# Restart a service
+python cli.py restart core
+```
+
+### Access Points
+
+After running `./start.sh`, access the platform at:
+
+- **HiveMatrix**: `https://localhost:443` (or `http://localhost:8000` if port 443 binding failed)
+- **Helm Dashboard**: `http://localhost:5004`
+- **Keycloak Admin**: `http://localhost:8080`
+- **Core Service**: `http://localhost:5000`
+
+Default credentials:
+- Username: `admin`
+- Password: `admin`
+
+**Important**: Change the default password in Keycloak admin console after first login.
+
+### Installing Additional Services
+
+Via Helm web interface (http://localhost:5004):
+1. Navigate to "Apps" or "Services" section
+2. Click "Install" next to the desired service
+3. Wait for installation to complete
+4. Service will automatically start
+
+Via command line:
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python install_manager.py install codex
+python cli.py start codex
+```
+
+### Configuration Updates
+
+After modifying Helm's master configuration, sync to all apps:
+
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python config_manager.py sync-all
+```
+
+Or restart the platform with `./start.sh` which automatically syncs configs.
+
+## 9. Design System & BEM Classes
 
 _(This section will be expanded with more components as they are built.)_
 
@@ -646,7 +1017,7 @@ _(This section will be expanded with more components as they are built.)_
 -   **Label:** Standard `label` element
 -   Styling is provided globally by Nexus
 
-## 9. Database Best Practices
+## 10. Database Best Practices
 
 ### Configuration Storage
 
@@ -672,7 +1043,7 @@ _(This section will be expanded with more components as they are built.)_
 - Use `db.relationship()` with `back_populates` for bidirectional relationships
 - Add `cascade="all, delete-orphan"` for proper cleanup
 
-## 10. External System Integration
+## 11. External System Integration
 
 ### Sync Scripts
 
@@ -690,7 +1061,7 @@ Services that integrate with external systems (like Codex with Freshservice and 
 - Never hardcode credentials
 - Provide interactive setup via `init_db.py`
 
-## 11. Common Patterns
+## 12. Common Patterns
 
 ### Service Directory Structure
 
@@ -736,8 +1107,9 @@ Every service must have:
 - `init_db.py` - Interactive database setup
 - `services.json` - Service discovery
 
-## 12. Version History
+## 13. Version History
 
+- **3.3** - Added centralized configuration management (config_manager.py), auto-installation architecture (install_manager.py), unified startup script (start.sh), and comprehensive deployment documentation
 - **3.2** - Added revokable session management, logout flow, token validation, Keycloak proxy on port 443
 - **3.1** - Added service-to-service communication, permission levels, database best practices, external integrations
 - **3.0** - Initial version with core architecture patterns
