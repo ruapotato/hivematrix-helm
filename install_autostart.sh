@@ -46,10 +46,37 @@ mkdir -p "$USER_SERVICE_DIR"
 echo -e "${GREEN}✓ Directory created${NC}"
 echo ""
 
-# Copy service file
-echo -e "${YELLOW}Installing systemd service...${NC}"
-cp "$SERVICE_FILE" "$USER_SERVICE_DIR/hivematrix.service"
-echo -e "${GREEN}✓ Service file installed${NC}"
+# Generate service file with correct paths and user
+echo -e "${YELLOW}Generating systemd service file...${NC}"
+cat > "$USER_SERVICE_DIR/hivematrix.service" <<EOF
+[Unit]
+Description=HiveMatrix Orchestration System
+Documentation=https://github.com/ruapotato/hivematrix-helm
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$SCRIPT_DIR
+ExecStart=$SCRIPT_DIR/systemd_start.sh
+ExecStop=$SCRIPT_DIR/systemd_stop.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening (relaxed for development)
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="HIVEMATRIX_DEV_MODE=false"
+
+[Install]
+WantedBy=default.target
+EOF
+echo -e "${GREEN}✓ Service file generated${NC}"
 echo ""
 
 # Reload systemd
