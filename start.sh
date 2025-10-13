@@ -792,8 +792,9 @@ if lsof -i :5004 > /dev/null 2>&1; then
     fi
 fi
 
-# Start Helm
-python run.py &
+# Start Helm with log redirection
+mkdir -p logs
+python run.py > logs/helm.stdout.log 2> logs/helm.stderr.log &
 HELM_PID=$!
 
 # Wait and check if Helm started successfully
