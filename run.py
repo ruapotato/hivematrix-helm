@@ -21,46 +21,76 @@ def check_required_services():
 
     if keycloak_config:
         print(f"\nChecking Keycloak at {keycloak_config['url']}...")
-        try:
-            response = requests.get(f"{keycloak_config['url']}", timeout=3)
-            print("✓ Keycloak is running")
-        except requests.RequestException:
-            print("✗ Keycloak is NOT running")
-            print("  To start: Use CLI or start manually from /home/david/work/keycloak-26.3.5/")
+        keycloak_healthy = False
+        # Retry up to 5 times (15 seconds total)
+        for attempt in range(5):
+            try:
+                response = requests.get(f"{keycloak_config['url']}", timeout=3)
+                print("✓ Keycloak is running")
+                keycloak_healthy = True
+                break
+            except requests.RequestException:
+                if attempt < 4:  # Don't sleep on last attempt
+                    if attempt == 0:
+                        print("  Waiting for Keycloak to be ready...")
+                    time.sleep(3)
+
+        if not keycloak_healthy:
+            print("✗ Keycloak is NOT running after 15s")
             all_running = False
 
     if core_config:
         print(f"\nChecking Core service at {core_config['url']}...")
         core_healthy = False
-        # Try /health first, fall back to /
-        for endpoint in ['/health', '/']:
-            try:
-                response = requests.get(f"{core_config['url']}{endpoint}", timeout=3)
-                if response.status_code == 200:
-                    print(f"✓ Core service is running (checked {endpoint})")
-                    core_healthy = True
-                    break
-            except requests.RequestException:
-                continue
+        # Retry up to 5 times (15 seconds total)
+        for attempt in range(5):
+            # Try /health first, fall back to /
+            for endpoint in ['/health', '/']:
+                try:
+                    response = requests.get(f"{core_config['url']}{endpoint}", timeout=3)
+                    if response.status_code == 200:
+                        print(f"✓ Core service is running (checked {endpoint})")
+                        core_healthy = True
+                        break
+                except requests.RequestException:
+                    continue
+
+            if core_healthy:
+                break
+
+            if attempt < 4:  # Don't sleep on last attempt
+                if attempt == 0:
+                    print("  Waiting for Core to be ready...")
+                time.sleep(3)
 
         if not core_healthy:
-            print("✗ Core service is NOT running")
+            print("✗ Core service is NOT running after 15s")
             all_running = False
 
     if nexus_config:
         print(f"\nChecking Nexus service at {nexus_config['url']}/health...")
-        try:
-            # Disable SSL verification for self-signed certificates
-            import urllib3
-            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            response = requests.get(f"{nexus_config['url']}/health", timeout=3, verify=False)
-            if response.status_code == 200:
-                print("✓ Nexus service is running")
-            else:
-                print("✗ Nexus service is NOT healthy")
-                all_running = False
-        except requests.RequestException as e:
-            print(f"✗ Nexus service is NOT running: {e}")
+        nexus_healthy = False
+        # Disable SSL verification for self-signed certificates
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        # Retry up to 10 times (30 seconds total) - Nexus can take time to bind to port 443
+        for attempt in range(10):
+            try:
+                response = requests.get(f"{nexus_config['url']}/health", timeout=3, verify=False)
+                if response.status_code == 200:
+                    print("✓ Nexus service is running")
+                    nexus_healthy = True
+                    break
+            except requests.RequestException as e:
+                if attempt < 9:  # Don't sleep on last attempt
+                    if attempt == 0:
+                        print("  Waiting for Nexus to be ready...")
+                    time.sleep(3)
+                else:
+                    print(f"✗ Nexus service is NOT running after 30s: {e}")
+
+        if not nexus_healthy:
             all_running = False
 
     print("\n" + "-"*60)
