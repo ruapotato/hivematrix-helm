@@ -134,8 +134,9 @@ class ServiceManager:
             if conn.laddr.port == port and conn.status == 'LISTEN':
                 try:
                     process = psutil.Process(conn.pid)
-                    # Accept Python or Java (Keycloak) processes
-                    if 'python' in process.name().lower() or 'java' in process.name().lower():
+                    proc_name = process.name().lower()
+                    # Accept Python web servers (python, gunicorn, waitress) or Java (Keycloak)
+                    if any(name in proc_name for name in ['python', 'java', 'gunicorn', 'waitress']):
                         return process.pid
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
