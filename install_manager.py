@@ -310,7 +310,9 @@ class InstallManager:
                 "path": f"../keycloak-{keycloak_version}",
                 "port": 8080,
                 "start_command": "bin/kc.sh start-dev",
-                "type": "keycloak"
+                "type": "keycloak",
+                "visible": False,  # Infrastructure service, access via /keycloak/ proxy only
+                "admin_only": True  # Only admins should access Keycloak admin console
             }
 
         # Add Helm (the orchestration service itself)
@@ -320,7 +322,8 @@ class InstallManager:
             "port": 5004,
             "python_bin": "pyenv/bin/python",
             "run_script": "run.py",
-            "visible": True
+            "visible": True,
+            "admin_only": True  # Only admins should access orchestration interface
         }
 
         # Add installed apps
