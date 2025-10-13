@@ -160,14 +160,14 @@ echo "================================================================"
 echo ""
 
 # Wait for Keycloak to be ready with retry logic
-echo "Waiting for Keycloak to be ready..."
-MAX_RETRIES=30
+echo "Waiting for Keycloak to be ready (this may take up to 2 minutes)..."
+MAX_RETRIES=60  # Increased from 30 to 60 (2 minutes total)
 RETRY_COUNT=0
 ACCESS_TOKEN=""
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     # Try to authenticate
-    TOKEN_RESPONSE=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    TOKEN_RESPONSE=$(curl -s --connect-timeout 2 -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "username=$ADMIN_USER" \
       -d "password=$ADMIN_PASS" \
@@ -183,14 +183,23 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-        echo -e "${YELLOW}  Waiting for Keycloak to start... (attempt $RETRY_COUNT/$MAX_RETRIES)${NC}"
+        # Show progress every 5 attempts
+        if [ $((RETRY_COUNT % 5)) -eq 0 ]; then
+            ELAPSED=$((RETRY_COUNT * 2))
+            echo -e "${YELLOW}  Still waiting... (${ELAPSED}s elapsed)${NC}"
+        fi
         sleep 2
     fi
 done
 
 if [ -z "$ACCESS_TOKEN" ]; then
-    echo -e "${RED}✗ Failed to authenticate with Keycloak after $MAX_RETRIES attempts${NC}"
-    echo "Make sure Keycloak is running and admin credentials are correct"
+    echo -e "${RED}✗ Failed to authenticate with Keycloak after $((MAX_RETRIES * 2)) seconds${NC}"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check if Keycloak is running: ps aux | grep keycloak"
+    echo "  2. Check Keycloak logs: tail -50 ../keycloak-*/data/log/keycloak.log"
+    echo "  3. Try accessing: curl http://localhost:8080"
+    echo ""
     exit 1
 fi
 
