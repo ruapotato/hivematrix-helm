@@ -59,6 +59,11 @@ class ServiceManager:
         # Target services.json in the service directory
         target_config_path = os.path.join(service_path, 'services.json')
 
+        # Skip if target is a symlink (prevents overwriting master config)
+        if os.path.islink(target_config_path):
+            print(f"  ✓ {os.path.basename(service_path)} uses symlink to master config")
+            return
+
         try:
             # Load master config
             with open(master_config_path, 'r') as f:
