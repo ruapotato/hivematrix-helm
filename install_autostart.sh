@@ -22,6 +22,24 @@ echo "  HiveMatrix Auto-Start Installation"
 echo "================================================================"
 echo ""
 
+# Check if initial setup has been done
+if [ ! -d "$SCRIPT_DIR/pyenv" ] || [ ! -f "$SCRIPT_DIR/instance/helm.conf" ]; then
+    echo -e "${YELLOW}⚠️  Initial setup not detected!${NC}"
+    echo ""
+    echo "Please run './start.sh' once before installing the systemd service."
+    echo "This is required to:"
+    echo "  - Install system dependencies (PostgreSQL, Java, etc.)"
+    echo "  - Set up port 443 binding capability"
+    echo "  - Configure databases and Keycloak"
+    echo ""
+    echo "After start.sh completes successfully, press Ctrl+C and run this script again."
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Initial setup detected${NC}"
+echo ""
+
 # Create user systemd directory
 echo -e "${YELLOW}Creating user systemd service directory...${NC}"
 mkdir -p "$USER_SERVICE_DIR"

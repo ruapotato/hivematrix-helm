@@ -25,14 +25,29 @@ david     680668  ... python run.py (helm)
 ### Option 1: User Systemd Service (Recommended)
 
 **Advantages:**
-- No root privileges required
+- No root privileges required for service operation
 - Automatic restart on failure
 - Centralized logging via journalctl
 - Clean service management
 
+**Prerequisites:**
+⚠️ **IMPORTANT:** Run `./start.sh` ONCE manually before installing the systemd service!
+
+This initial run will:
+- Install system dependencies (PostgreSQL, Java, etc.) - needs sudo
+- Set up port 443 binding capability - needs sudo
+- Configure databases and Keycloak
+- Test that everything works
+
 **Installation:**
 ```bash
+# Step 1: Initial setup (run once)
 cd /home/david/Work/hivematrix/hivematrix-helm
+./start.sh
+
+# Wait for services to start, then press Ctrl+C to stop
+
+# Step 2: Install systemd service
 ./install_autostart.sh
 ```
 
