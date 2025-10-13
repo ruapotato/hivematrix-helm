@@ -338,8 +338,12 @@ class InstallManager:
                     "run_script": "run.py"
                 }
 
-                # Mark all services as visible in the side panel
-                service_config['visible'] = True
+                # Infrastructure services (core, nexus) should not be visible in sidebar
+                # They are accessed indirectly - core for auth, nexus as the proxy
+                if app_key in ['core', 'nexus']:
+                    service_config['visible'] = False
+                else:
+                    service_config['visible'] = True
 
                 services[app_key] = service_config
 
