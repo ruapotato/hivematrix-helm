@@ -840,10 +840,27 @@ sleep 3
 
 # Check if Helm process is still running
 if ! ps -p $HELM_PID > /dev/null 2>&1; then
-echo -e "${RED}✗ Helm failed to start${NC}"
-echo ""
-echo "Check the output above for errors."
-cleanup
+    echo -e "${RED}✗ Helm failed to start${NC}"
+    echo ""
+    echo "Error details from logs/helm.stderr.log:"
+    echo "----------------------------------------"
+    if [ -f logs/helm.stderr.log ]; then
+        cat logs/helm.stderr.log
+    else
+        echo "(no error log found)"
+    fi
+    echo "----------------------------------------"
+    echo ""
+    echo "Last output from logs/helm.stdout.log:"
+    echo "----------------------------------------"
+    if [ -f logs/helm.stdout.log ]; then
+        tail -20 logs/helm.stdout.log
+    else
+        echo "(no output log found)"
+    fi
+    echo "----------------------------------------"
+    echo ""
+    cleanup
 fi
 
 echo ""
