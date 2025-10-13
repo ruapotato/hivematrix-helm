@@ -159,8 +159,8 @@ class ConfigManager:
                 f"JWT_ALGORITHM=RS256",
             ])
 
-        # Add database configuration if present
-        if 'database' in config:
+        # Add database configuration if present (PostgreSQL only, not Neo4j)
+        if 'database' in config and 'host' in config['database']:
             lines.extend([
                 f"",
                 f"# Database Configuration",
@@ -187,7 +187,29 @@ class ConfigManager:
             f"# Service URLs",
             f"CORE_SERVICE_URL=http://localhost:5000",
             f"NEXUS_SERVICE_URL={nexus_url}",
+            f"HELM_SERVICE_URL=http://localhost:5004",
         ])
+
+        # Add app-specific environment variables from config sections
+        if 'sections' in config['app']:
+            # For KnowledgeTree, add Neo4j and Codex configuration
+            if app_name == 'knowledgetree':
+                if 'database' in config['app']['sections']:
+                    db_config = config['app']['sections']['database']
+                    lines.extend([
+                        f"",
+                        f"# Neo4j Configuration",
+                        f"NEO4J_URI={db_config.get('neo4j_uri', 'bolt://localhost:7687')}",
+                        f"NEO4J_USER={db_config.get('neo4j_user', 'neo4j')}",
+                        f"NEO4J_PASSWORD={db_config.get('neo4j_password', '')}",
+                    ])
+                if 'services' in config['app']['sections']:
+                    svc_config = config['app']['sections']['services']
+                    lines.extend([
+                        f"",
+                        f"# Service Integration",
+                        f"CODEX_SERVICE_URL={svc_config.get('codex_url', 'http://localhost:5010')}",
+                    ])
 
         return "\n".join(lines) + "\n"
 
