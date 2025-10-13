@@ -129,7 +129,18 @@ spi-sticky-session-encoder-infinispan-should-attach-route=false
 http-enabled=true
 KEYCLOAK_EOF
     echo -e "${GREEN}✓ Keycloak configured with URL: ${KC_HOSTNAME_URL}${NC}"
-    echo -e "${YELLOW}Note: Keycloak needs to be restarted for these changes to take effect${NC}"
+    echo ""
+    echo -e "${YELLOW}Restarting Keycloak for changes to take effect...${NC}"
+
+    # Restart Keycloak using CLI
+    cd "$SCRIPT_DIR"
+    if [ -f "pyenv/bin/python" ]; then
+        source pyenv/bin/activate
+        python cli.py stop keycloak 2>/dev/null || true
+        sleep 3
+        python cli.py start keycloak 2>/dev/null
+        echo -e "${GREEN}✓ Keycloak restarted${NC}"
+    fi
 else
     echo -e "${RED}✗ Keycloak config file not found at $KEYCLOAK_CONF_FILE${NC}"
     echo -e "${YELLOW}Continuing with realm configuration...${NC}"
