@@ -28,7 +28,7 @@
     "port": 443,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
-    "visible": true
+    "visible": false
   },
   "knowledgetree": {
     "url": "http://localhost:5020",
