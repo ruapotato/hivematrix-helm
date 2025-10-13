@@ -477,11 +477,21 @@ echo -e "${GREEN}✓ Services configured${NC}"
 echo ""
 
 # === SETUP KEYCLOAK ===
-if [ "$IS_FRESH_INSTALL" = true ]; then
+# Load Keycloak version to check if directory exists
+source "$SCRIPT_DIR/keycloak_version.conf"
+KEYCLOAK_DIR="$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}"
+
+# Configure Keycloak if it's a fresh install OR if Keycloak directory doesn't exist
+if [ "$IS_FRESH_INSTALL" = true ] || [ ! -d "$KEYCLOAK_DIR" ]; then
     echo "================================================================"
     echo "  Step 8: Configure Keycloak"
     echo "================================================================"
     echo ""
+
+    if [ ! -d "$KEYCLOAK_DIR" ]; then
+        echo -e "${YELLOW}⚠ Keycloak directory not found - will reconfigure${NC}"
+        echo ""
+    fi
 
     echo -e "${YELLOW}Starting Keycloak for configuration...${NC}"
     set +e  # Disable exit on error temporarily
@@ -511,7 +521,7 @@ else
     echo "================================================================"
     echo ""
     echo -e "${GREEN}✓ Keycloak configuration found (skipping)${NC}"
-    echo -e "${BLUE}  To reconfigure: rm instance/helm.conf && ./start.sh${NC}"
+    echo -e "${BLUE}  To reconfigure: rm instance/helm.conf or rm -rf $KEYCLOAK_DIR${NC}"
     echo ""
 fi
 
