@@ -20,7 +20,7 @@
     "port": 5000,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
-    "visible": true
+    "visible": false
   },
   "nexus": {
     "url": "https://localhost:443",
