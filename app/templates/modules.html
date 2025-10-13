@@ -79,7 +79,7 @@
             </div>
             <div class="log-modal__footer">
                 <button class="btn btn--primary" onclick="closeLogModal()">
-                    <span class="btn__label">Close</span>
+                    <span class="btn__label">Close & Refresh</span>
                 </button>
             </div>
         </div>
@@ -260,6 +260,8 @@
         function closeLogModal() {
             const modal = document.getElementById('logModal');
             modal.classList.remove('active');
+            // Reload page to show updated module list
+            location.reload();
         }
 
         function installModule(moduleId) {
@@ -284,9 +286,7 @@
             .then(data => {
                 if (data.success) {
                     showLogModal(`Installation: ${moduleId}`, data.logs || []);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 3000);
+                    // User will manually close modal and can then reload page
                 } else {
                     showLogModal(`Installation Failed: ${moduleId}`, data.logs || [data.message]);
                     btn.querySelector('.btn__label').textContent = originalText;
@@ -348,9 +348,7 @@
             .then(data => {
                 if (data.success) {
                     showLogModal(`Update: ${moduleId}`, data.logs || []);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 3000);
+                    // User will manually close modal and can then reload page
                 } else {
                     showLogModal(`Update Failed: ${moduleId}`, data.logs || [data.message]);
                     btn.querySelector('.btn__label').textContent = originalText;
@@ -395,9 +393,7 @@
             .then(data => {
                 if (data.success) {
                     showLogModal(`Custom Module Installation`, data.logs || []);
-                    setTimeout(() => {
-                        location.reload();
-                    }, 3000);
+                    // User will manually close modal and can then reload page
                 } else {
                     showLogModal(`Installation Failed`, data.logs || [data.message]);
                     submitBtn.querySelector('.btn__label').textContent = originalText;
