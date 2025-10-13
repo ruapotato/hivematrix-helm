@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.4**
+**Version 3.5**
 
 ## 1. Core Philosophy & Goals
 
@@ -990,7 +990,215 @@ python config_manager.py sync-all
 
 Or restart the platform with `./start.sh` which automatically syncs configs.
 
-## 9. Security Architecture
+## 9. Development & Debugging Tools
+
+HiveMatrix includes CLI tools in the `hivematrix-helm` repository to streamline development and debugging workflows. These tools eliminate the need to manually navigate web interfaces or query databases during development.
+
+### Centralized Logging System
+
+All HiveMatrix services send logs to Helm's PostgreSQL database for centralized storage and analysis. This allows viewing logs from all services in one place.
+
+### logs_cli.py - View Service Logs
+
+Quick command-line access to centralized logs from any service.
+
+**Usage:**
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+
+# View recent logs from a specific service
+python logs_cli.py knowledgetree --tail 50
+
+# Filter by log level
+python logs_cli.py core --level ERROR --tail 100
+
+# View all services
+python logs_cli.py --tail 30
+```
+
+**Features:**
+- Color-coded output by log level (ERROR=red, WARNING=yellow, INFO=green, DEBUG=blue)
+- Filters by service name and log level
+- Configurable tail count
+- Reads directly from Helm's PostgreSQL database
+
+**Implementation:**
+- Location: `hivematrix-helm/logs_cli.py`
+- Database: Reads from `log_entries` table in Helm's PostgreSQL database
+- Config: Uses `instance/helm.conf` for database connection
+
+### create_test_token.py - Generate JWT Tokens
+
+Creates valid JWT tokens for testing authenticated endpoints without browser login.
+
+**Usage:**
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+
+# Generate a test token
+TOKEN=$(python create_test_token.py 2>/dev/null)
+
+# Use token to test an endpoint
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:5020/knowledgetree/browse/
+```
+
+**Features:**
+- Generates tokens signed with Core's RSA private key
+- Creates admin-level user tokens with 24-hour expiration
+- Includes proper JWT headers (kid, alg) matching Core's JWKS
+- No server interaction required - works offline
+
+**Token Payload:**
+```json
+{
+  "sub": "admin",
+  "username": "admin",
+  "preferred_username": "admin",
+  "email": "admin@hivematrix.local",
+  "permission_level": "admin",
+  "iss": "hivematrix-core",
+  "groups": ["admin"],
+  "exp": "<24_hours_from_now>"
+}
+```
+
+**Implementation:**
+- Location: `hivematrix-helm/create_test_token.py`
+- Requires: Core's private key at `../hivematrix-core/keys/jwt_private.pem`
+- Output: Raw JWT token to stdout
+
+### test_with_token.sh - Quick Endpoint Testing
+
+Convenience wrapper that generates a token and tests an endpoint in one command.
+
+**Usage:**
+```bash
+cd hivematrix-helm
+
+# Test KnowledgeTree browse endpoint
+./test_with_token.sh
+
+# Or modify to test any endpoint:
+# Edit test_with_token.sh and change the curl URL
+```
+
+**Script Contents:**
+```bash
+#!/bin/bash
+cd /home/david/Work/hivematrix/hivematrix-helm
+source pyenv/bin/activate
+TOKEN=$(python create_test_token.py 2>/dev/null)
+
+echo "Testing KnowledgeTree /browse with auth token..."
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:5020/knowledgetree/browse/
+```
+
+### Development Workflow
+
+**Debugging a Service Error:**
+
+1. **Check Recent Logs:**
+   ```bash
+   cd hivematrix-helm
+   source pyenv/bin/activate
+   python logs_cli.py myservice --tail 50
+   ```
+
+2. **Test Authenticated Endpoint:**
+   ```bash
+   TOKEN=$(python create_test_token.py 2>/dev/null)
+   curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:5010/myservice/api/data | jq
+   ```
+
+3. **Monitor Logs During Testing:**
+   ```bash
+   # Terminal 1: Watch logs
+   watch -n 2 'python logs_cli.py myservice --tail 20'
+
+   # Terminal 2: Make test requests
+   ./test_with_token.sh
+   ```
+
+**Testing Service-to-Service Communication:**
+
+```bash
+# Generate token and test from calling service
+TOKEN=$(python create_test_token.py 2>/dev/null)
+
+# Simulate service call to target service
+curl -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     http://127.0.0.1:5010/codex/api/companies
+```
+
+### Adding Logging to Your Service
+
+All services should use the Helm logger for centralized logging:
+
+**In your service's `app/__init__.py`:**
+```python
+from app.helm_logger import init_helm_logger
+
+# Initialize logger
+app.config["SERVICE_NAME"] = os.environ.get("SERVICE_NAME", "myservice")
+app.config["HELM_SERVICE_URL"] = os.environ.get("HELM_SERVICE_URL", "http://localhost:5004")
+
+helm_logger = init_helm_logger(
+    app.config["SERVICE_NAME"],
+    app.config["HELM_SERVICE_URL"]
+)
+
+# Log service startup
+helm_logger.info(f"{app.config['SERVICE_NAME']} service started")
+```
+
+**In your routes:**
+```python
+from app import helm_logger
+
+@app.route('/api/data')
+@token_required
+def api_data():
+    try:
+        helm_logger.info("Fetching data", extra={'user': g.user.get('username')})
+        # ... your code ...
+        return jsonify({'data': result})
+    except Exception as e:
+        helm_logger.error(f"Failed to fetch data: {e}", exc_info=True)
+        return {'error': 'Internal error'}, 500
+```
+
+### Troubleshooting Tools
+
+**Check if logs are being stored:**
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python -c "
+import psycopg2
+import configparser
+
+config = configparser.ConfigParser()
+config.read('instance/helm.conf')
+conn_str = config.get('database', 'connection_string')
+
+conn = psycopg2.connect(conn_str)
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(*) FROM log_entries')
+print(f'Total logs: {cursor.fetchone()[0]}')
+conn.close()
+"
+```
+
+**Clear old logs:**
+```bash
+# Not yet implemented - logs currently accumulate
+# TODO: Add log rotation/cleanup tool
+```
+
+## 10. Security Architecture
 
 HiveMatrix follows a **zero-trust internal network model** where only the Nexus gateway should be accessible externally. All other services operate on localhost and are accessed through the Nexus proxy.
 
@@ -1238,6 +1446,7 @@ Every service must have:
 
 ## 14. Version History
 
+- **3.5** - Added Development & Debugging Tools section: logs_cli.py for centralized log viewing, create_test_token.py for JWT token generation, test_with_token.sh for quick endpoint testing, and comprehensive debugging workflows
 - **3.4** - Added comprehensive security architecture, security audit tool (security_audit.py), firewall generation, service binding requirements, and automated security checks in start.sh
 - **3.3** - Added centralized configuration management (config_manager.py), auto-installation architecture (install_manager.py), unified startup script (start.sh), and comprehensive deployment documentation
 - **3.2** - Added revokable session management, logout flow, token validation, Keycloak proxy on port 443
