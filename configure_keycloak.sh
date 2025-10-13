@@ -165,8 +165,11 @@ MAX_RETRIES=60  # Increased from 30 to 60 (2 minutes total)
 RETRY_COUNT=0
 ACCESS_TOKEN=""
 
+# Temporarily disable exit on error for the retry loop
+set +e
+
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    # Try to authenticate
+    # Try to authenticate (curl may fail, that's expected)
     TOKEN_RESPONSE=$(curl -s --connect-timeout 2 -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "username=$ADMIN_USER" \
@@ -174,10 +177,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
       -d "grant_type=password" \
       -d "client_id=admin-cli" 2>/dev/null)
 
-    ACCESS_TOKEN=$(echo $TOKEN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+    ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
 
     if [ -n "$ACCESS_TOKEN" ]; then
         echo -e "${GREEN}✓ Keycloak is ready and authenticated${NC}"
+        set -e  # Re-enable exit on error
         break
     fi
 
@@ -191,6 +195,9 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         sleep 2
     fi
 done
+
+# Re-enable exit on error
+set -e
 
 if [ -z "$ACCESS_TOKEN" ]; then
     echo -e "${RED}✗ Failed to authenticate with Keycloak after $((MAX_RETRIES * 2)) seconds${NC}"
