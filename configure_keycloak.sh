@@ -148,24 +148,40 @@ echo "  HiveMatrix Keycloak Configuration"
 echo "================================================================"
 echo ""
 
-# Get admin access token
-echo "Authenticating with Keycloak..."
-TOKEN_RESPONSE=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=$ADMIN_USER" \
-  -d "password=$ADMIN_PASS" \
-  -d "grant_type=password" \
-  -d "client_id=admin-cli")
+# Wait for Keycloak to be ready with retry logic
+echo "Waiting for Keycloak to be ready..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+ACCESS_TOKEN=""
 
-ACCESS_TOKEN=$(echo $TOKEN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # Try to authenticate
+    TOKEN_RESPONSE=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=$ADMIN_USER" \
+      -d "password=$ADMIN_PASS" \
+      -d "grant_type=password" \
+      -d "client_id=admin-cli" 2>/dev/null)
+
+    ACCESS_TOKEN=$(echo $TOKEN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+
+    if [ -n "$ACCESS_TOKEN" ]; then
+        echo -e "${GREEN}✓ Keycloak is ready and authenticated${NC}"
+        break
+    fi
+
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+        echo -e "${YELLOW}  Waiting for Keycloak to start... (attempt $RETRY_COUNT/$MAX_RETRIES)${NC}"
+        sleep 2
+    fi
+done
 
 if [ -z "$ACCESS_TOKEN" ]; then
-    echo -e "${RED}✗ Failed to authenticate with Keycloak${NC}"
+    echo -e "${RED}✗ Failed to authenticate with Keycloak after $MAX_RETRIES attempts${NC}"
     echo "Make sure Keycloak is running and admin credentials are correct"
     exit 1
 fi
-
-echo -e "${GREEN}✓ Authenticated${NC}"
 
 # Create hivematrix realm
 echo ""
