@@ -1,0 +1,27 @@
+[Unit]
+Description=HiveMatrix Orchestration System
+Documentation=https://github.com/ruapotato/hivematrix-helm
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=david
+WorkingDirectory=/home/david/Work/hivematrix/hivematrix-helm
+ExecStart=/home/david/Work/hivematrix/hivematrix-helm/systemd_start.sh
+ExecStop=/home/david/Work/hivematrix/hivematrix-helm/systemd_stop.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening (relaxed for development)
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="HIVEMATRIX_DEV_MODE=false"
+
+[Install]
+WantedBy=default.target
