@@ -420,25 +420,14 @@ class ServiceManager:
         found_running_process = False
 
         if port:
-            try:
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                    try:
-                        connections = proc.net_connections()
-                        for conn in connections:
-                            if conn.laddr.port == port and conn.status == 'LISTEN':
-                                proc_info = ServiceManager.get_process_info(proc.pid)
-                                if proc_info:
-                                    result.update(proc_info)
-                                    result['status'] = 'running'
-                                    result['pid'] = proc.pid
-                                    found_running_process = True
-                                break
-                    except (psutil.AccessDenied, psutil.NoSuchProcess):
-                        continue
-                    if found_running_process:
-                        break
-            except Exception:
-                pass
+            pid = ServiceManager.find_service_process(service_name, port)
+            if pid:
+                proc_info = ServiceManager.get_process_info(pid)
+                if proc_info:
+                    result.update(proc_info)
+                    result['status'] = 'running'
+                    result['pid'] = pid
+                    found_running_process = True
 
         # If not found by port scan, check database status (for services managed by Helm)
         if not found_running_process:
