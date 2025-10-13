@@ -36,6 +36,40 @@ def all_services_status():
     return jsonify(statuses)
 
 
+@app.route('/api/dashboard/status', methods=['GET'])
+@token_required
+def dashboard_status():
+    """Get complete dashboard data (services + log stats)"""
+    from models import LogEntry
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+
+    # Get all service statuses
+    statuses = ServiceManager.get_all_service_statuses()
+
+    # Get recent log statistics
+    log_stats = {}
+    for service_name in statuses.keys():
+        # Count logs by level in last hour
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+
+        counts = (
+            LogEntry.query
+            .filter(LogEntry.service_name == service_name)
+            .filter(LogEntry.timestamp >= one_hour_ago)
+            .with_entities(LogEntry.level, func.count(LogEntry.id))
+            .group_by(LogEntry.level)
+            .all()
+        )
+
+        log_stats[service_name] = {level: count for level, count in counts}
+
+    return jsonify({
+        'statuses': statuses,
+        'log_stats': log_stats
+    })
+
+
 @app.route('/api/services/<service_name>/status', methods=['GET'])
 @token_required
 def service_status(service_name):

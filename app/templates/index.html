@@ -68,24 +68,24 @@
                     </thead>
                     <tbody>
                         {% for service_name, status in statuses.items() %}
-                        <tr>
+                        <tr data-service="{{ service_name }}">
                             <td>
                                 <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;">{{ service_name }}</a>
                             </td>
                             <td>
-                                <span class="badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                <span class="badge status-badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
                                     {{ status.status }}
                                 </span>
                             </td>
                             <td>
-                                <span class="badge badge--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
+                                <span class="badge health-badge badge--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
                                     {{ status.health }}
                                 </span>
                             </td>
                             <td>{{ status.configured_port or 'N/A' }}</td>
-                            <td>{{ status.pid or '-' }}</td>
-                            <td>{{ "%.1f"|format(status.cpu_percent) if status.cpu_percent else '-' }}</td>
-                            <td>{{ "%.1f"|format(status.memory_mb) if status.memory_mb else '-' }}</td>
+                            <td class="pid-cell">{{ status.pid or '-' }}</td>
+                            <td class="cpu-cell">{{ "%.1f"|format(status.cpu_percent) if status.cpu_percent else '-' }}</td>
+                            <td class="mem-cell">{{ "%.1f"|format(status.memory_mb) if status.memory_mb else '-' }}</td>
                             <td>
                                 {% set stats = log_stats.get(service_name, {}) %}
                                 {% if stats %}
@@ -101,10 +101,10 @@
                                         {% endif %}
                                     </span>
                                 {% else %}
-                                    -
+                                    <span class="log-stats">-</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="actions-cell" data-is-admin="{{ 'true' if user.permission_level == 'admin' else 'false' }}">
                                 {% if user.permission_level == 'admin' %}
                                     {% if status.status == 'running' %}
                                         <button class="btn btn--small btn--danger" onclick="controlService('{{ service_name }}', 'stop')">
@@ -187,8 +187,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                alert(data.message || 'Action completed');
-                location.reload();
+                // Show brief success message
+                const message = data.message || 'Action completed';
+                alert(message);
+                // Immediately update dashboard to show new status
+                updateDashboard();
             })
             .catch(error => {
                 alert('Error: ' + error);
@@ -235,8 +238,101 @@
         // Run security check on page load
         window.addEventListener('load', checkSecurityStatus);
 
-        // Auto-refresh every 10 seconds
-        setTimeout(() => location.reload(), 10000);
+        // Update dashboard data without page reload
+        function updateDashboard() {
+            const basePath = getBasePath();
+            fetch(`${basePath}/api/dashboard/status`)
+                .then(response => response.json())
+                .then(data => {
+                    updateServiceTable(data.statuses, data.log_stats);
+                })
+                .catch(error => {
+                    console.error('Failed to update dashboard:', error);
+                });
+        }
+
+        function updateServiceTable(statuses, logStats) {
+            const tbody = document.querySelector('table tbody');
+            if (!tbody) return;
+
+            // Update each row
+            Object.keys(statuses).forEach(serviceName => {
+                const status = statuses[serviceName];
+                const row = tbody.querySelector(`tr[data-service="${serviceName}"]`);
+                if (!row) return; // Service not in table yet, would need full reload
+
+                // Update status badge
+                const statusBadge = row.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.className = `badge status-badge badge--${status.status === 'running' ? 'success' : 'danger'}`;
+                    statusBadge.textContent = status.status;
+                }
+
+                // Update health badge
+                const healthBadge = row.querySelector('.health-badge');
+                if (healthBadge) {
+                    let badgeClass = 'badge health-badge';
+                    if (status.health === 'healthy') badgeClass += ' badge--success';
+                    else if (status.health === 'degraded') badgeClass += ' badge--warning';
+                    else badgeClass += ' badge--danger';
+                    healthBadge.className = badgeClass;
+                    healthBadge.textContent = status.health;
+                }
+
+                // Update PID
+                const pidCell = row.querySelector('.pid-cell');
+                if (pidCell) pidCell.textContent = status.pid || '-';
+
+                // Update CPU
+                const cpuCell = row.querySelector('.cpu-cell');
+                if (cpuCell) cpuCell.textContent = status.cpu_percent ? status.cpu_percent.toFixed(1) : '-';
+
+                // Update Memory
+                const memCell = row.querySelector('.mem-cell');
+                if (memCell) memCell.textContent = status.memory_mb ? status.memory_mb.toFixed(1) : '-';
+
+                // Update log stats
+                const logStatsCell = row.querySelector('.log-stats');
+                if (logStatsCell && logStats[serviceName]) {
+                    const stats = logStats[serviceName];
+                    let html = '';
+                    if (stats.ERROR && stats.ERROR > 0) {
+                        html += `<span class="badge badge--danger">E: ${stats.ERROR}</span> `;
+                    }
+                    if (stats.WARNING && stats.WARNING > 0) {
+                        html += `<span class="badge badge--warning">W: ${stats.WARNING}</span> `;
+                    }
+                    if (stats.INFO && stats.INFO > 0) {
+                        html += `<span class="badge badge--info">I: ${stats.INFO}</span>`;
+                    }
+                    logStatsCell.innerHTML = html || '-';
+                }
+
+                // Update action buttons based on status
+                const actionsCell = row.querySelector('.actions-cell');
+                if (actionsCell && actionsCell.getAttribute('data-is-admin') === 'true') {
+                    if (status.status === 'running') {
+                        actionsCell.innerHTML = `
+                            <button class="btn btn--small btn--danger" onclick="controlService('${serviceName}', 'stop')">
+                                <span class="btn__label">Stop</span>
+                            </button>
+                            <button class="btn btn--small" onclick="controlService('${serviceName}', 'restart')">
+                                <span class="btn__label">Restart</span>
+                            </button>
+                        `;
+                    } else {
+                        actionsCell.innerHTML = `
+                            <button class="btn btn--small btn--primary" onclick="controlService('${serviceName}', 'start')">
+                                <span class="btn__label">Start</span>
+                            </button>
+                        `;
+                    }
+                }
+            });
+        }
+
+        // Poll for updates every 5 seconds
+        setInterval(updateDashboard, 5000);
     </script>
 </body>
 </html>
