@@ -75,14 +75,14 @@ class ServiceManager:
             service_dir_name = os.path.basename(service_path)
 
             for service_name, service_info in master_config.items():
-                # For Nexus, only include services marked as visible
+                # For Nexus, include visible field so sidebar can filter
                 if service_dir_name == 'hivematrix-nexus':
-                    if service_info.get('visible', False):
-                        simplified_config[service_name] = {
-                            "url": service_info["url"]
-                        }
+                    simplified_config[service_name] = {
+                        "url": service_info["url"],
+                        "visible": service_info.get('visible', True)
+                    }
                 else:
-                    # For other services, include all
+                    # For other services, include just URL
                     simplified_config[service_name] = {
                         "url": service_info["url"]
                     }
