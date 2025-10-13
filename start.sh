@@ -227,12 +227,22 @@ echo "  Step 2: Setup Helm"
 echo "================================================================"
 echo ""
 
-echo -e "${YELLOW}Creating Helm virtual environment...${NC}"
-python3 -m venv pyenv
+if [ ! -d "pyenv" ]; then
+    echo -e "${YELLOW}Creating virtual environment...${NC}"
+    python3 -m venv pyenv
+else
+    echo -e "${BLUE}  Virtual environment already exists${NC}"
+fi
+
 source pyenv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-echo -e "${GREEN}✓ Helm environment ready${NC}"
+
+echo -e "${YELLOW}Upgrading pip...${NC}"
+pip install --upgrade pip -q
+echo -e "${GREEN}✓ pip upgraded${NC}"
+
+echo -e "${YELLOW}Installing Python dependencies...${NC}"
+pip install -r requirements.txt -q
+echo -e "${GREEN}✓ Dependencies installed${NC}"
 echo ""
 
 # === DOWNLOAD KEYCLOAK ===
@@ -327,44 +337,55 @@ echo "================================================================"
 echo ""
 
 # Install Core
-echo -e "${YELLOW}Installing Core...${NC}"
-cd "$PARENT_DIR/hivematrix-core"
-if [ -f "install.sh" ]; then
-    chmod +x install.sh
-    ./install.sh
+if [ ! -d "$PARENT_DIR/hivematrix-core/pyenv" ]; then
+    echo -e "${YELLOW}Installing Core...${NC}"
+    cd "$PARENT_DIR/hivematrix-core"
+    if [ -f "install.sh" ]; then
+        chmod +x install.sh
+        ./install.sh
+    else
+        python3 -m venv pyenv
+        source pyenv/bin/activate
+        pip install --upgrade pip -q
+        pip install -r requirements.txt -q
+    fi
+    cd "$SCRIPT_DIR"
+    echo -e "${GREEN}✓ Core installed${NC}"
 else
-    python3 -m venv pyenv
-    source pyenv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
+    echo -e "${GREEN}✓ Core already installed${NC}"
 fi
-cd "$SCRIPT_DIR"
-echo -e "${GREEN}✓ Core installed${NC}"
 echo ""
 
 # Install Nexus
-echo -e "${YELLOW}Installing Nexus...${NC}"
-cd "$PARENT_DIR/hivematrix-nexus"
-if [ -f "install.sh" ]; then
-    chmod +x install.sh
-    ./install.sh
-    # Ensure gunicorn is installed after install.sh
-    source pyenv/bin/activate
-    if ! pip show gunicorn > /dev/null 2>&1; then
+if [ ! -d "$PARENT_DIR/hivematrix-nexus/pyenv" ]; then
+    echo -e "${YELLOW}Installing Nexus...${NC}"
+    cd "$PARENT_DIR/hivematrix-nexus"
+    if [ -f "install.sh" ]; then
+        chmod +x install.sh
+        ./install.sh
+        # Ensure gunicorn is installed after install.sh
+        source pyenv/bin/activate
+        if ! pip show gunicorn > /dev/null 2>&1; then
+            echo -e "${YELLOW}  Installing gunicorn...${NC}"
+            pip install gunicorn==21.2.0 -q
+        fi
+        deactivate
+    else
+        python3 -m venv pyenv
+        source pyenv/bin/activate
+        pip install --upgrade pip -q
+        pip install -r requirements.txt -q
+        # Install gunicorn
         echo -e "${YELLOW}  Installing gunicorn...${NC}"
-        pip install gunicorn==21.2.0
+        pip install gunicorn==21.2.0 -q
+        deactivate
     fi
-    deactivate
+    cd "$SCRIPT_DIR"
+    echo -e "${GREEN}✓ Nexus installed${NC}"
 else
-    python3 -m venv pyenv
-    source pyenv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    # Install gunicorn
-    echo -e "${YELLOW}  Installing gunicorn...${NC}"
-    pip install gunicorn==21.2.0
-    deactivate
+    echo -e "${GREEN}✓ Nexus already installed${NC}"
 fi
+cd "$SCRIPT_DIR"
 
 # Setup setcap for port 443 binding (must happen AFTER venv is created)
 echo -e "${YELLOW}Configuring Nexus for HTTPS (port 443)...${NC}"
@@ -424,9 +445,7 @@ else
     echo -e "${YELLOW}  ✗ Nexus Python binary not found at: $NEXUS_VENV_PYTHON${NC}"
     echo -e "${YELLOW}  Skipping port 443 setup - Nexus will run on port 8000${NC}"
 fi
-
 cd "$SCRIPT_DIR"
-echo -e "${GREEN}✓ Nexus installed${NC}"
 echo ""
 
 # === SETUP DATABASES ===
@@ -435,16 +454,15 @@ echo "  Step 6: Database Setup"
 echo "================================================================"
 echo ""
 
-echo "We need to setup PostgreSQL databases for Helm, Core, and other services."
-echo ""
-echo -e "${YELLOW}Setting up Helm database...${NC}"
-
 # Initialize Helm database
 source pyenv/bin/activate
 if [ ! -f "instance/helm.conf" ]; then
+    echo -e "${YELLOW}Setting up Helm database...${NC}"
     python init_db.py
+    echo -e "${GREEN}✓ Helm database created${NC}"
+else
+    echo -e "${GREEN}✓ Helm database already exists${NC}"
 fi
-echo -e "${GREEN}✓ Helm database ready${NC}"
 echo ""
 
 # === UPDATE SERVICES CONFIG ===
@@ -459,33 +477,43 @@ echo -e "${GREEN}✓ Services configured${NC}"
 echo ""
 
 # === SETUP KEYCLOAK ===
-echo "================================================================"
-echo "  Step 8: Configure Keycloak"
-echo "================================================================"
-echo ""
+if [ "$IS_FRESH_INSTALL" = true ]; then
+    echo "================================================================"
+    echo "  Step 8: Configure Keycloak"
+    echo "================================================================"
+    echo ""
 
-echo -e "${YELLOW}Starting Keycloak for configuration...${NC}"
-set +e  # Disable exit on error temporarily
-OUTPUT=$(python cli.py start keycloak 2>&1)
-EXIT_CODE=$?
-set -e  # Re-enable exit on error
+    echo -e "${YELLOW}Starting Keycloak for configuration...${NC}"
+    set +e  # Disable exit on error temporarily
+    OUTPUT=$(python cli.py start keycloak 2>&1)
+    EXIT_CODE=$?
+    set -e  # Re-enable exit on error
 
-if echo "$OUTPUT" | grep -q "already running"; then
-    echo -e "${BLUE}  ✓ Keycloak already running${NC}"
-elif [ $EXIT_CODE -eq 0 ] || echo "$OUTPUT" | grep -q "started"; then
-    echo -e "${GREEN}✓ Keycloak started${NC}"
-    sleep 10
+    if echo "$OUTPUT" | grep -q "already running"; then
+        echo -e "${BLUE}  ✓ Keycloak already running${NC}"
+    elif [ $EXIT_CODE -eq 0 ] || echo "$OUTPUT" | grep -q "started"; then
+        echo -e "${GREEN}✓ Keycloak started${NC}"
+        sleep 10
+    else
+        echo -e "${YELLOW}  Keycloak status uncertain, continuing...${NC}"
+    fi
+
+    echo -e "${YELLOW}Configuring Keycloak realm and users...${NC}"
+    if [ -f "configure_keycloak.sh" ]; then
+        chmod +x configure_keycloak.sh
+        ./configure_keycloak.sh
+    fi
+    echo -e "${GREEN}✓ Keycloak configured${NC}"
+    echo ""
 else
-    echo -e "${YELLOW}  Keycloak status uncertain, continuing...${NC}"
+    echo "================================================================"
+    echo "  Step 8: Keycloak Already Configured"
+    echo "================================================================"
+    echo ""
+    echo -e "${GREEN}✓ Keycloak configuration found (skipping)${NC}"
+    echo -e "${BLUE}  To reconfigure: rm instance/helm.conf && ./start.sh${NC}"
+    echo ""
 fi
-
-echo -e "${YELLOW}Configuring Keycloak realm and users...${NC}"
-if [ -f "configure_keycloak.sh" ]; then
-    chmod +x configure_keycloak.sh
-    ./configure_keycloak.sh
-fi
-echo -e "${GREEN}✓ Keycloak configured${NC}"
-echo ""
 
 # Restart Core and Nexus if running to reload the updated client secret
 if [ -d "pyenv" ]; then
