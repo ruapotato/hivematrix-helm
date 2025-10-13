@@ -63,3 +63,18 @@ app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAM
 from app import routes
 from app import api_routes
 from app import app_manager_routes
+
+# Start log file watcher in background thread
+import threading
+from pathlib import Path
+
+def start_log_watcher_thread():
+    """Start the log watcher in a background thread"""
+    from log_watcher import start_log_watcher
+    watcher_thread = threading.Thread(target=start_log_watcher, daemon=True)
+    watcher_thread.start()
+
+# Only start log watcher if logs directory exists (i.e., not during initial setup)
+logs_dir = Path('logs')
+if logs_dir.exists():
+    start_log_watcher_thread()
