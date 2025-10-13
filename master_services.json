@@ -15,20 +15,8 @@
     "url": "https://localhost:443",
     "port": 443
   },
-  "codex": {
-    "url": "http://localhost:5010",
-    "port": 5010
-  },
-  "ledger": {
-    "url": "http://localhost:5030",
-    "port": 5030
-  },
   "knowledgetree": {
     "url": "http://localhost:5020",
     "port": 5020
-  },
-  "template": {
-    "url": "http://localhost:5040",
-    "port": 5040
   }
 }
