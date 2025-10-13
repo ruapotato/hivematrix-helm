@@ -4,7 +4,8 @@
     "path": "../keycloak-26.4.0",
     "port": 8080,
     "start_command": "bin/kc.sh start-dev",
-    "type": "keycloak"
+    "type": "keycloak",
+    "visible": false
   },
   "helm": {
     "url": "http://localhost:5004",
@@ -12,7 +13,8 @@
     "port": 5004,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
-    "visible": true
+    "visible": true,
+    "admin_only": true
   },
   "core": {
     "url": "http://localhost:5000",
