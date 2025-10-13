@@ -28,23 +28,35 @@ Helm is the operational control center for the HiveMatrix ecosystem. It provides
 
 ## Quick Start
 
-Get the entire HiveMatrix ecosystem running in 3 commands:
+Get the entire HiveMatrix ecosystem running in one command:
 
 ```bash
 cd hivematrix-helm
-
-# 1. Setup Keycloak (downloads, installs, configures)
-./setup_keycloak.sh
-./configure_keycloak.sh
-
-# 2. Start everything
 ./start.sh
-
-# 3. Visit http://localhost:8000
-# Login: admin / admin
 ```
 
-That's it! All services will be running with proper authentication.
+**First run:** The script will:
+- Install system dependencies (PostgreSQL, Java, etc.)
+- Download and configure Keycloak
+- Set up databases
+- Create default admin user
+- Start all services
+
+**Access HiveMatrix:**
+- Main URL: **https://localhost:443** (or https://YOUR_IP:443)
+- Login: **admin / admin**
+
+⚠️ **Change the default password after first login!**
+
+### Auto-Start on Boot (Optional)
+
+After initial setup, enable auto-start:
+
+```bash
+./install_autostart.sh
+```
+
+This creates a systemd user service that starts HiveMatrix on boot. See [AUTOSTART.md](AUTOSTART.md) for details.
 
 ---
 
