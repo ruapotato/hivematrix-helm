@@ -5,7 +5,8 @@
     "port": 8080,
     "start_command": "bin/kc.sh start-dev",
     "type": "keycloak",
-    "visible": false
+    "visible": false,
+    "admin_only": true
   },
   "helm": {
     "url": "http://localhost:5004",
