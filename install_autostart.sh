@@ -1,14 +1,14 @@
 #!/bin/bash
 #
 # HiveMatrix Auto-start Installation Script
-# Installs HiveMatrix as a user systemd service (no root required for services)
+# Installs HiveMatrix as a system service with capability to bind to port 443
 #
 
 set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SERVICE_FILE="$SCRIPT_DIR/hivematrix.service"
-USER_SERVICE_DIR="$HOME/.config/systemd/user"
+SYSTEM_SERVICE_DIR="/etc/systemd/system"
 
 # Colors
 GREEN='\033[0;32m'
@@ -40,15 +40,20 @@ fi
 echo -e "${GREEN}✓ Initial setup detected${NC}"
 echo ""
 
-# Create user systemd directory
-echo -e "${YELLOW}Creating user systemd service directory...${NC}"
-mkdir -p "$USER_SERVICE_DIR"
-echo -e "${GREEN}✓ Directory created${NC}"
+# Check for sudo access
+echo -e "${YELLOW}Checking for sudo privileges...${NC}"
+if ! sudo -v; then
+    echo -e "${YELLOW}⚠️ This installation requires sudo access to install the system service${NC}"
+    echo ""
+    echo "Please run with sudo privileges or provide your password when prompted."
+    exit 1
+fi
+echo -e "${GREEN}✓ Sudo access confirmed${NC}"
 echo ""
 
 # Generate service file with correct paths and user
 echo -e "${YELLOW}Generating systemd service file...${NC}"
-cat > "$USER_SERVICE_DIR/hivematrix.service" <<EOF
+sudo tee "$SYSTEM_SERVICE_DIR/hivematrix.service" > /dev/null <<EOF
 [Unit]
 Description=HiveMatrix Orchestration System
 Documentation=https://github.com/ruapotato/hivematrix-helm
@@ -57,6 +62,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+User=$USER
+Group=$(id -gn)
 WorkingDirectory=$SCRIPT_DIR
 ExecStart=$SCRIPT_DIR/systemd_start.sh
 ExecStop=$SCRIPT_DIR/systemd_stop.sh
@@ -65,40 +72,35 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
+# Capability for binding to privileged ports (< 1024)
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+# Critical: PrivateUsers must be false for capabilities to work
+PrivateUsers=false
+
 # Security hardening (relaxed for development)
 PrivateTmp=yes
-NoNewPrivileges=yes
+NoNewPrivileges=true
 
 # Environment
-Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin"
 Environment="HIVEMATRIX_DEV_MODE=false"
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 EOF
 echo -e "${GREEN}✓ Service file generated${NC}"
 echo ""
 
 # Reload systemd
 echo -e "${YELLOW}Reloading systemd daemon...${NC}"
-systemctl --user daemon-reload
+sudo systemctl daemon-reload
 echo -e "${GREEN}✓ Systemd reloaded${NC}"
 echo ""
 
 # Enable service
 echo -e "${YELLOW}Enabling HiveMatrix service...${NC}"
-systemctl --user enable hivematrix.service
+sudo systemctl enable hivematrix.service
 echo -e "${GREEN}✓ Service enabled${NC}"
-echo ""
-
-# Enable linger (allows service to run without active login)
-echo -e "${YELLOW}Enabling user linger (allows service to run at boot)...${NC}"
-if loginctl enable-linger "$USER" 2>/dev/null; then
-    echo -e "${GREEN}✓ Linger enabled${NC}"
-else
-    echo -e "${YELLOW}⚠ Could not enable linger (may need sudo)${NC}"
-    echo -e "${YELLOW}  Run: sudo loginctl enable-linger $USER${NC}"
-fi
 echo ""
 
 echo "================================================================"
@@ -106,14 +108,16 @@ echo -e "${GREEN}  Installation Complete!${NC}"
 echo "================================================================"
 echo ""
 echo -e "${BLUE}Service Commands:${NC}"
-echo "  Start:   systemctl --user start hivematrix"
-echo "  Stop:    systemctl --user stop hivematrix"
-echo "  Status:  systemctl --user status hivematrix"
-echo "  Logs:    journalctl --user -u hivematrix -f"
+echo "  Start:   sudo systemctl start hivematrix"
+echo "  Stop:    sudo systemctl stop hivematrix"
+echo "  Status:  sudo systemctl status hivematrix"
+echo "  Logs:    sudo journalctl -u hivematrix -f"
 echo ""
 echo -e "${BLUE}Auto-start Status:${NC}"
-echo "  Enabled: $(systemctl --user is-enabled hivematrix 2>/dev/null || echo 'unknown')"
-echo "  Linger:  $(loginctl show-user "$USER" -p Linger --value 2>/dev/null || echo 'unknown')"
+echo "  Enabled: $(sudo systemctl is-enabled hivematrix 2>/dev/null || echo 'unknown')"
 echo ""
 echo -e "${YELLOW}Note:${NC} HiveMatrix will now start automatically on boot!"
+echo ""
+echo -e "${YELLOW}To start the service now:${NC}"
+echo "  sudo systemctl start hivematrix"
 echo ""
