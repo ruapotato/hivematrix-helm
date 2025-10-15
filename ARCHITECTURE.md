@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.5**
+**Version 3.6**
 
 ## 1. Core Philosophy & Goals
 
@@ -274,17 +274,76 @@ The user interface is a composition of the independent applications, assembled b
 }
 ```
 
-### URL Prefix Middleware
+### URL Prefix Handling with ProxyFix
 
-Each service must handle URL prefixes when behind the Nexus proxy. The `PrefixMiddleware` class adjusts the WSGI environment:
+When services are accessed through the Nexus proxy, they need to know their URL prefix to generate correct URLs. This is handled via X-Forwarded headers and werkzeug's `ProxyFix` middleware.
+
+#### How Nexus Proxies Requests
+
+1. User requests: `https://192.168.1.233/knowledgetree/browse/`
+2. Nexus strips the service prefix before forwarding
+3. Nexus adds X-Forwarded headers including `X-Forwarded-Prefix: /knowledgetree`
+4. Backend service receives: `/browse/` with headers indicating the prefix
+5. Backend's ProxyFix middleware sets SCRIPT_NAME from X-Forwarded-Prefix
+6. Flask's `url_for()` generates correct URLs: `/knowledgetree/browse/`
+
+#### Nexus Configuration
+
+Nexus automatically adds X-Forwarded headers when proxying to backend services:
+
+```python
+# In hivematrix-nexus/app/routes.py
+headers['Authorization'] = f"Bearer {token}"
+headers['X-Forwarded-For'] = request.remote_addr
+headers['X-Forwarded-Proto'] = 'https' if request.is_secure else 'http'
+headers['X-Forwarded-Host'] = request.host
+headers['X-Forwarded-Prefix'] = f'/{service_name}'  # e.g., /knowledgetree
+```
+
+#### Backend Service Configuration
+
+Each service must use werkzeug's `ProxyFix` middleware to respect these headers:
 
 ```python
 # In app/__init__.py
-from app.middleware import PrefixMiddleware
-app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAME"]}')
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,      # Trust X-Forwarded-For
+    x_proto=1,    # Trust X-Forwarded-Proto (http/https)
+    x_host=1,     # Trust X-Forwarded-Host
+    x_prefix=1    # Trust X-Forwarded-Prefix (sets SCRIPT_NAME)
+)
 ```
 
-This allows services to generate correct URLs using Flask's `url_for()` when accessed through Nexus.
+**Important**: Do NOT use custom PrefixMiddleware. Nexus already strips the prefix before forwarding, so the backend receives clean paths without the service name. The ProxyFix middleware only affects URL generation, not route matching.
+
+#### Authentication for AJAX Requests
+
+When making AJAX requests from frontend JavaScript, you must include `credentials: 'same-origin'` in fetch options:
+
+```javascript
+fetch('/api/search?query=test', {
+    credentials: 'same-origin'
+})
+```
+
+This ensures the access_token cookie is sent with the request. The `@token_required` decorator checks both:
+1. `Authorization: Bearer <token>` header (from Nexus proxy)
+2. `access_token` cookie (from browser, as fallback)
+
+```python
+# In app/auth.py - token_required decorator
+auth_header = request.headers.get('Authorization')
+token = None
+
+if auth_header and auth_header.startswith('Bearer '):
+    token = auth_header.split(' ')[1]
+else:
+    # Fall back to cookie
+    token = request.cookies.get('access_token')
+```
 
 ## 6. Configuration Management & Auto-Installation
 
@@ -588,9 +647,15 @@ except FileNotFoundError:
 from extensions import db
 db.init_app(app)
 
-# Apply middleware to handle URL prefix when behind Nexus proxy
-from app.middleware import PrefixMiddleware
-app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAME"]}')
+# Apply ProxyFix to handle X-Forwarded headers from Nexus proxy
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(
+    app.wsgi_app,
+    x_for=1,      # Trust X-Forwarded-For
+    x_proto=1,    # Trust X-Forwarded-Proto
+    x_host=1,     # Trust X-Forwarded-Host
+    x_prefix=1    # Trust X-Forwarded-Prefix (sets SCRIPT_NAME for url_for)
+)
 
 from app import routes
 ```
@@ -1446,6 +1511,7 @@ Every service must have:
 
 ## 14. Version History
 
+- **3.6** - Updated URL prefix handling to use werkzeug's ProxyFix middleware instead of custom PrefixMiddleware. Added X-Forwarded-Prefix header from Nexus. Documented cookie-based authentication fallback for AJAX requests with credentials: 'same-origin'.
 - **3.5** - Added Development & Debugging Tools section: logs_cli.py for centralized log viewing, create_test_token.py for JWT token generation, test_with_token.sh for quick endpoint testing, and comprehensive debugging workflows
 - **3.4** - Added comprehensive security architecture, security audit tool (security_audit.py), firewall generation, service binding requirements, and automated security checks in start.sh
 - **3.3** - Added centralized configuration management (config_manager.py), auto-installation architecture (install_manager.py), unified startup script (start.sh), and comprehensive deployment documentation
