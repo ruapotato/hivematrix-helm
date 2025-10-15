@@ -48,5 +48,13 @@
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
+  },
+  "ledger": {
+    "url": "http://localhost:5030",
+    "path": "../hivematrix-ledger",
+    "port": 5030,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
   }
 }
