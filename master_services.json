@@ -14,5 +14,13 @@
   "nexus": {
     "url": "https://localhost:443",
     "port": 443
+  },
+  "codex": {
+    "url": "http://localhost:5010",
+    "port": 5010
+  },
+  "knowledgetree": {
+    "url": "http://localhost:5020",
+    "port": 5020
   }
 }

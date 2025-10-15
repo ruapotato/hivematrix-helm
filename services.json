@@ -32,5 +32,21 @@
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": false
+  },
+  "codex": {
+    "url": "http://localhost:5010",
+    "path": "../hivematrix-codex",
+    "port": 5010,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  },
+  "knowledgetree": {
+    "url": "http://localhost:5020",
+    "path": "../hivematrix-knowledgetree",
+    "port": 5020,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
   }
 }
