@@ -80,7 +80,8 @@ class ServiceManager:
                     simplified_config[service_name] = {
                         "url": service_info["url"],
                         "visible": service_info.get('visible', True),
-                        "admin_only": service_info.get('admin_only', False)
+                        "admin_only": service_info.get('admin_only', False),
+                        "billing_or_admin_only": service_info.get('billing_or_admin_only', False)
                     }
                 else:
                     # For other services, include just URL

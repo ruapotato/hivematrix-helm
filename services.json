@@ -47,7 +47,8 @@
     "port": 5030,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
-    "visible": true
+    "visible": true,
+    "billing_or_admin_only": true
   },
   "knowledgetree": {
     "url": "http://localhost:5020",
