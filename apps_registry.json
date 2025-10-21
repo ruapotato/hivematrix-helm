@@ -55,6 +55,15 @@
       "required": false,
       "dependencies": ["core"],
       "install_order": 6
+    },
+    "brainhair": {
+      "name": "Brain Hair",
+      "description": "AI API Gateway with PHI/CJIS filtering for Claude integration",
+      "git_url": "https://github.com/ruapotato/hivematrix-brainhair",
+      "port": 5050,
+      "required": false,
+      "dependencies": ["core", "codex", "knowledgetree"],
+      "install_order": 7
     }
   },
   "system_dependencies": {

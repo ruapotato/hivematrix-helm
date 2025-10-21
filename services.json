@@ -47,13 +47,20 @@
     "port": 5030,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
-    "visible": true,
-    "billing_or_admin_only": true
+    "visible": true
   },
   "knowledgetree": {
     "url": "http://localhost:5020",
     "path": "../hivematrix-knowledgetree",
     "port": 5020,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  },
+  "brainhair": {
+    "url": "http://localhost:5050",
+    "path": "../hivematrix-brainhair",
+    "port": 5050,
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
