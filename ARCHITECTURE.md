@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.6**
+**Version 3.8**
 
 ## 1. Core Philosophy & Goals
 
@@ -214,18 +214,48 @@ The `call_service` function:
 
 ### Service Discovery
 
-Services are registered in `services.json` for discovery:
+Services are registered in two configuration files:
 
+**`master_services.json`** - Master service registry (simplified format):
 ```json
 {
   "codex": {
-    "url": "http://localhost:5010"
+    "url": "http://localhost:5010",
+    "port": 5010
   },
-  "treasury": {
-    "url": "http://localhost:5011"
+  "archive": {
+    "url": "http://localhost:5012",
+    "port": 5012
   }
 }
 ```
+
+**`services.json`** - Full service configuration (extended format):
+```json
+{
+  "codex": {
+    "url": "http://localhost:5010",
+    "path": "../hivematrix-codex",
+    "port": 5010,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  },
+  "archive": {
+    "url": "http://localhost:5012",
+    "path": "../hivematrix-archive",
+    "port": 5012,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  }
+}
+```
+
+**When adding a new service:**
+1. Add entry to `master_services.json` (required for Nexus service discovery)
+2. Add extended entry to `services.json` (required for Helm service management)
+3. Both files must be updated for the service to be properly discovered and started
 
 ### Authentication Decorator Behavior
 
@@ -462,28 +492,74 @@ HiveMatrix uses a registry-based installation system that allows services to be 
 
 #### App Registry (`apps_registry.json`)
 
-All installable apps are defined in `hivematrix-helm/apps_registry.json`:
+All installable apps are defined in `hivematrix-helm/apps_registry.json`. This file is the authoritative source for all HiveMatrix services and is used by `install_manager.py` to automatically generate both `services.json` and `master_services.json`.
 
 ```json
 {
   "core_apps": {
     "core": {
       "name": "HiveMatrix Core",
+      "description": "Authentication & service registry - Required",
       "git_url": "https://github.com/ruapotato/hivematrix-core",
       "port": 5000,
       "required": true,
       "dependencies": ["postgresql"],
       "install_order": 1
+    },
+    "nexus": {
+      "name": "HiveMatrix Nexus",
+      "description": "Frontend gateway and UI - Required",
+      "git_url": "https://github.com/ruapotato/hivematrix-nexus",
+      "port": 443,
+      "required": true,
+      "dependencies": ["core", "keycloak"],
+      "install_order": 2
     }
   },
   "default_apps": {
+    "codex": {
+      "name": "HiveMatrix Codex",
+      "description": "Central data hub for MSP operations",
+      "git_url": "https://github.com/ruapotato/hivematrix-codex",
+      "port": 5010,
+      "required": false,
+      "dependencies": ["postgresql", "core"],
+      "install_order": 3
+    },
+    "archive": {
+      "name": "HiveMatrix Archive",
+      "description": "Document and file archival system",
+      "git_url": "https://github.com/ruapotato/hivematrix-archive",
+      "port": 5012,
+      "required": false,
+      "dependencies": ["core", "codex"],
+      "install_order": 8
+    },
     "template": {
       "name": "HiveMatrix Template",
+      "description": "Template for new HiveMatrix services",
       "git_url": "https://github.com/ruapotato/hivematrix-template",
       "port": 5040,
       "required": false,
       "dependencies": ["core"],
       "install_order": 6
+    }
+  },
+  "system_dependencies": {
+    "keycloak": {
+      "name": "Keycloak",
+      "description": "Authentication server",
+      "version": "26.4.0",
+      "download_url": "https://github.com/keycloak/keycloak/releases/download/26.4.0/keycloak-26.4.0.tar.gz",
+      "port": 8080,
+      "required": true,
+      "install_order": 0
+    },
+    "postgresql": {
+      "name": "PostgreSQL",
+      "description": "Relational database",
+      "apt_package": "postgresql postgresql-contrib",
+      "required": true
     }
   }
 }
@@ -495,15 +571,27 @@ The `InstallManager` class handles:
 
 1. **Cloning Apps**: Downloads from git repository
 2. **Running Install Scripts**: Executes `install.sh` if present
-3. **Updating Service Registry**: Adds app to `services.json` for service discovery
+3. **Updating Service Registry**: Automatically generates both `master_services.json` and `services.json` from `apps_registry.json`
 4. **Checking Status**: Monitors git status and available updates
 
-Installation flow:
+**Key Feature:** The `update-config` command reads `apps_registry.json` and automatically generates both service configuration files:
+
 ```bash
 cd hivematrix-helm
 source pyenv/bin/activate
+
+# Install a new service
 python install_manager.py install template
+
+# Regenerate service configurations from apps_registry.json
+python install_manager.py update-config
 ```
+
+**When to use `update-config`:**
+- After adding a new service to `apps_registry.json`
+- After modifying service properties in `apps_registry.json`
+- When service configuration files get out of sync
+- This is automatically called by `start.sh` on startup
 
 Or via Helm web interface.
 
@@ -1487,7 +1575,7 @@ hivematrix-myservice/
 ├── models.py                 # SQLAlchemy models
 ├── init_db.py                # Database initialization script
 ├── run.py                    # Application entry point
-├── services.json             # Service discovery config
+├── services.json             # Service discovery config (symlinked from Helm)
 ├── requirements.txt          # Python dependencies
 ├── .flaskenv                 # Environment variables (not in git)
 ├── .gitignore
@@ -1507,9 +1595,87 @@ Every service must have:
 - `extensions.py` - Flask extensions
 - `models.py` - Database models
 - `init_db.py` - Interactive database setup
-- `services.json` - Service discovery
+- `services.json` - Service discovery (symlinked to `../hivematrix-helm/services.json`)
+
+**Note:** The `services.json` file should be a symlink created by `install.sh`, not a regular file. This ensures all services see the same service registry.
+
+### Service Configuration Files in Helm
+
+Helm maintains **two** service configuration files with different purposes:
+
+**1. `master_services.json`** - Minimal service registry
+- **Purpose:** Used by Nexus for service discovery and URL routing
+- **Format:** Simplified with just `url` and `port`
+- **Synced to:** Individual services via service_manager
+- **When to update:** When adding/removing services
+
+**2. `services.json`** - Complete service configuration
+- **Purpose:** Used by Helm for service management (start/stop/status)
+- **Format:** Extended with `path`, `python_bin`, `run_script`, `visible`
+- **Used by:** Helm's service_manager.py and cli.py
+- **When to update:** When adding/removing services
+
+**Adding a new service workflow:**
+
+Instead of manually editing both `master_services.json` and `services.json`, you should:
+
+1. **Add the service to `apps_registry.json`:**
+   ```json
+   {
+     "default_apps": {
+       "archive": {
+         "name": "HiveMatrix Archive",
+         "description": "Document and file archival system",
+         "git_url": "https://github.com/ruapotato/hivematrix-archive",
+         "port": 5012,
+         "required": false,
+         "dependencies": ["core", "codex"],
+         "install_order": 8
+       }
+     }
+   }
+   ```
+
+2. **Run `update-config` to generate both files automatically:**
+   ```bash
+   cd hivematrix-helm
+   source pyenv/bin/activate
+   python install_manager.py update-config
+   ```
+
+This will automatically create entries in both `master_services.json` and `services.json`:
+
+**Generated `master_services.json` entry:**
+```json
+{
+  "archive": {
+    "url": "http://localhost:5012",
+    "port": 5012
+  }
+}
+```
+
+**Generated `services.json` entry:**
+```json
+{
+  "archive": {
+    "url": "http://localhost:5012",
+    "path": "../hivematrix-archive",
+    "port": 5012,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  }
+}
+```
+
+**Important:** Always use `apps_registry.json` as the source of truth and let `install_manager.py update-config` generate the other files. Manual edits to `services.json` or `master_services.json` will be overwritten on the next config update.
 
 ## 14. Version History
+
+- **3.8** - Documented apps_registry.json as the authoritative source for service configuration, with install_manager.py update-config generating both master_services.json and services.json automatically. Added archive service example to registry documentation.
+
+- **3.7** - Documented master_services.json and services.json dual configuration system for service discovery and management
 
 - **3.6** - Updated URL prefix handling to use werkzeug's ProxyFix middleware instead of custom PrefixMiddleware. Added X-Forwarded-Prefix header from Nexus. Documented cookie-based authentication fallback for AJAX requests with credentials: 'same-origin'.
 - **3.5** - Added Development & Debugging Tools section: logs_cli.py for centralized log viewing, create_test_token.py for JWT token generation, test_with_token.sh for quick endpoint testing, and comprehensive debugging workflows

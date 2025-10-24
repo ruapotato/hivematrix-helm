@@ -769,11 +769,47 @@ if [ ${#ADDITIONAL_SERVICES[@]} -gt 0 ]; then
     echo "================================================================"
     echo ""
 
+    # Disable exit on error for service startup (we want to continue even if one fails)
+    set +e
+
     for svc in "${ADDITIONAL_SERVICES[@]}"; do
         echo -e "${YELLOW}Starting $svc...${NC}"
-        python cli.py start $svc 2>/dev/null || echo "  (already running or failed)"
+
+        # Capture both stdout and stderr
+        START_OUTPUT=$(python cli.py start $svc 2>&1)
+        START_EXIT_CODE=$?
+
+        if [ $START_EXIT_CODE -eq 0 ]; then
+            # Success - show the output
+            echo "$START_OUTPUT"
+        else
+            # Failed - show detailed error
+            echo -e "${RED}  ✗ Failed to start $svc${NC}"
+            echo -e "${RED}  Error output:${NC}"
+            echo "$START_OUTPUT" | sed 's/^/    /'
+
+            # Check common issues
+            if echo "$START_OUTPUT" | grep -q "not found in configuration"; then
+                echo -e "${YELLOW}  → Service not in services.json - add it to master_services.json and services.json${NC}"
+            elif echo "$START_OUTPUT" | grep -q "already running"; then
+                echo -e "${YELLOW}  → Service already running${NC}"
+            elif echo "$START_OUTPUT" | grep -q "directory not found"; then
+                echo -e "${YELLOW}  → Service directory missing - run install.sh in hivematrix-$svc${NC}"
+            elif echo "$START_OUTPUT" | grep -q "Python executable not found"; then
+                echo -e "${YELLOW}  → Virtual environment missing - run ./install.sh in hivematrix-$svc${NC}"
+            fi
+
+            # Show log files if they exist
+            if [ -f "logs/$svc.stderr.log" ]; then
+                echo -e "${YELLOW}  → Check logs/\${svc}.stderr.log for details${NC}"
+            fi
+        fi
+
         sleep 2
     done
+
+    # Re-enable exit on error
+    set -e
 
     echo ""
     echo -e "${GREEN}✓ Additional services started${NC}"

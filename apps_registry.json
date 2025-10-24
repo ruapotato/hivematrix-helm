@@ -64,6 +64,15 @@
       "required": false,
       "dependencies": ["core", "codex", "knowledgetree"],
       "install_order": 7
+    },
+    "archive": {
+      "name": "HiveMatrix Archive",
+      "description": "Document and file archival system",
+      "git_url": "https://github.com/ruapotato/hivematrix-archive",
+      "port": 5012,
+      "required": false,
+      "dependencies": ["core", "codex"],
+      "install_order": 8
     }
   },
   "system_dependencies": {

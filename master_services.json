@@ -30,5 +30,9 @@
   "brainhair": {
     "url": "http://localhost:5050",
     "port": 5050
+  },
+  "archive": {
+    "url": "http://localhost:5012",
+    "port": 5012
   }
 }

@@ -64,5 +64,13 @@
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
+  },
+  "archive": {
+    "url": "http://localhost:5012",
+    "path": "../hivematrix-archive",
+    "port": 5012,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
   }
 }
