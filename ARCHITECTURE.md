@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.8**
+**Version 3.9**
 
 ## 1. Core Philosophy & Goals
 
@@ -571,10 +571,50 @@ The `InstallManager` class handles:
 
 1. **Cloning Apps**: Downloads from git repository
 2. **Running Install Scripts**: Executes `install.sh` if present
-3. **Updating Service Registry**: Automatically generates both `master_services.json` and `services.json` from `apps_registry.json`
-4. **Checking Status**: Monitors git status and available updates
+3. **Dynamic Service Discovery**: Automatically scans for ALL `hivematrix-*` directories with `run.py` files
+4. **Service Registry Generation**: Automatically generates both `master_services.json` and `services.json`
+5. **Checking Status**: Monitors git status and available updates
 
-**Key Feature:** The `update-config` command reads `apps_registry.json` and automatically generates both service configuration files:
+**Key Feature - Dynamic Service Discovery:**
+
+The `scan_all_services()` method automatically discovers all HiveMatrix services in the parent directory, not just those in `apps_registry.json`. This makes the system much more flexible:
+
+- **Registry Services**: For services defined in `apps_registry.json`, uses registry metadata (port, name, description)
+- **Unknown Services**: For services not in registry (e.g., manually copied or old versions), auto-generates configuration with smart port assignment
+- **No Manual Configuration**: After `git pull` or copying a service, it's automatically detected on next startup
+
+**How it works:**
+```python
+def scan_all_services(self):
+    """Scan parent directory for all hivematrix-* services with run.py"""
+    discovered = {}
+
+    # Scan for all hivematrix-* directories
+    for item in self.parent_dir.iterdir():
+        if item.name.startswith('hivematrix-') and (item / 'run.py').exists():
+            service_name = item.name.replace('hivematrix-', '')
+
+            # Use registry info if available
+            app_info = self.registry.get(service_name)
+            if app_info:
+                discovered[service_name] = app_info
+            else:
+                # Auto-generate config for unknown services
+                discovered[service_name] = {
+                    'name': f'HiveMatrix {service_name.title()}',
+                    'port': 5000 + (hash(service_name) % 900),
+                    'required': False
+                }
+    return discovered
+```
+
+**Benefits:**
+- Copy old service versions → automatically detected
+- Git pull new services → automatically registered
+- No manual `services.json` edits required
+- Works with any `hivematrix-*` service that has `run.py`
+
+**The `update-config` command** reads both the registry AND scans the filesystem to generate service configuration files:
 
 ```bash
 cd hivematrix-helm
@@ -1058,10 +1098,78 @@ This script will:
 2. Download and setup Keycloak
 3. Clone and install Core and Nexus if not present
 4. Setup databases
-5. Configure Keycloak realm and users
-6. Sync configurations to all apps (via `config_manager.py`)
-7. Start all services (Keycloak, Core, Nexus, and any additional installed apps)
-8. Launch Helm web interface on port 5004
+5. **Auto-detect and register all services** (via `install_manager.py update-config`)
+6. **Automatically configure Keycloak** realm and users (if needed)
+7. Sync configurations to all apps (via `config_manager.py`)
+8. Start all services (Keycloak, Core, Nexus, and any additional installed apps)
+9. Launch Helm web interface on port 5004
+
+### Keycloak Auto-Configuration
+
+HiveMatrix includes intelligent Keycloak setup automation that ensures proper synchronization between Keycloak and the system configuration.
+
+**Automatic Configuration Detection:**
+
+The startup script (`start.sh`) automatically detects when Keycloak needs to be configured by checking:
+
+1. **Fresh Keycloak Installation**: If Keycloak was just downloaded (directory didn't exist)
+2. **Missing Configuration**: If `client_secret` is missing from `master_config.json`
+3. **Configuration Sync**: If `master_config.json` is missing but Keycloak exists, it removes Keycloak to force reinstallation
+
+**What Gets Configured:**
+
+When Keycloak configuration runs (`configure_keycloak.sh`), it creates:
+
+- **Realm**: `hivematrix` realm with proper frontend URL settings
+- **Client**: `core-client` with OAuth2 authorization code flow
+- **Admin User**: Default admin user (`admin`/`admin`)
+- **Permission Groups**:
+  - `admins` - Full system access
+  - `technicians` - Technical operations
+  - `billing` - Financial operations
+  - `client` - Limited access (default for new users)
+- **Group Mapper**: OIDC mapper to include group membership in JWT tokens
+
+**Configuration Synchronization:**
+
+The system maintains synchronization between Keycloak and `master_config.json`:
+
+```bash
+# If Keycloak is reinstalled (directory deleted)
+1. Start.sh detects Keycloak is missing
+2. Downloads and extracts Keycloak
+3. Clears old keycloak section from master_config.json
+4. Runs configure_keycloak.sh to set up realm and users
+5. Saves new client_secret to master_config.json
+
+# If master_config.json is deleted but Keycloak exists
+1. Start.sh detects config is missing
+2. Removes Keycloak directory to force clean state
+3. Re-downloads Keycloak
+4. Runs full configuration
+```
+
+**Manual Reconfiguration:**
+
+To force Keycloak reconfiguration:
+
+```bash
+# Delete Keycloak directory - will trigger full reinstall and config
+rm -rf ../keycloak-26.4.0
+./start.sh
+
+# Or delete master config - will force resync
+rm instance/configs/master_config.json
+./start.sh
+```
+
+**Keycloak Configuration Files:**
+
+- **Master Config**: `hivematrix-helm/instance/configs/master_config.json` - Stores `client_secret` and URLs
+- **Service Configs**: Each service's `.flaskenv` gets Keycloak settings from master config
+- **Keycloak Config**: `../keycloak-26.4.0/conf/keycloak.conf` - Auto-configured for proxy mode with hostname
+
+The configuration process is **idempotent** - running it multiple times is safe and will update existing configurations rather than creating duplicates
 
 ### Development Mode
 
@@ -1672,6 +1780,8 @@ This will automatically create entries in both `master_services.json` and `servi
 **Important:** Always use `apps_registry.json` as the source of truth and let `install_manager.py update-config` generate the other files. Manual edits to `services.json` or `master_services.json` will be overwritten on the next config update.
 
 ## 14. Version History
+
+- **3.9** - **Dynamic Service Discovery & Keycloak Auto-Configuration**: Added `scan_all_services()` to `install_manager.py` for automatic detection of all `hivematrix-*` services (not just registry). Services are discovered on every `start.sh` run, allowing manual copies and git pulls to work seamlessly. Enhanced Keycloak setup with intelligent synchronization between Keycloak database and `master_config.json` - tracks fresh Keycloak installations (`KEYCLOAK_FRESH_INSTALL`), clears old config when reinstalling, and ensures realm/users are always configured. Two-way sync prevents configuration drift. Both improvements make the system more resilient and reduce manual configuration.
 
 - **3.8** - Documented apps_registry.json as the authoritative source for service configuration, with install_manager.py update-config generating both master_services.json and services.json automatically. Added archive service example to registry documentation.
 
