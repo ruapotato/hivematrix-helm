@@ -254,6 +254,16 @@ echo ""
 # Load Keycloak version from config file
 source "$SCRIPT_DIR/keycloak_version.conf"
 
+# Track if we're downloading Keycloak fresh (indicates we need to configure it)
+KEYCLOAK_FRESH_INSTALL=false
+
+# Check if master_config.json exists - if not, we need to reinstall Keycloak to sync them
+MASTER_CONFIG="$SCRIPT_DIR/instance/configs/master_config.json"
+if [ ! -f "$MASTER_CONFIG" ] && [ -d "$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}" ]; then
+    echo -e "${YELLOW}⚠ Master config missing but Keycloak exists - removing Keycloak to force sync${NC}"
+    rm -rf "$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}"
+fi
+
 if [ ! -d "$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}" ]; then
     echo -e "${YELLOW}Downloading Keycloak ${KEYCLOAK_VERSION}...${NC}"
     cd "$PARENT_DIR"
@@ -264,6 +274,26 @@ if [ ! -d "$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}" ]; then
 
     cd "$SCRIPT_DIR"
     echo -e "${GREEN}✓ Keycloak installed${NC}"
+    KEYCLOAK_FRESH_INSTALL=true
+
+    # Clear old master_config.json since Keycloak database is fresh
+    if [ -f "$MASTER_CONFIG" ]; then
+        echo -e "${YELLOW}  Clearing old Keycloak configuration from master_config.json${NC}"
+        # Remove the keycloak section from master_config.json using python
+        python3 <<EOF
+import json
+try:
+    with open('$MASTER_CONFIG', 'r') as f:
+        config = json.load(f)
+    if 'keycloak' in config:
+        del config['keycloak']
+    with open('$MASTER_CONFIG', 'w') as f:
+        json.dump(config, f, indent=2)
+    print("  ✓ Cleared old Keycloak configuration")
+except Exception as e:
+    print(f"  ⚠ Could not clear config: {e}")
+EOF
+    fi
 else
     echo -e "${GREEN}✓ Keycloak already installed${NC}"
 fi
@@ -481,15 +511,26 @@ echo ""
 source "$SCRIPT_DIR/keycloak_version.conf"
 KEYCLOAK_DIR="$PARENT_DIR/keycloak-${KEYCLOAK_VERSION}"
 
-# Configure Keycloak if it's a fresh install OR if Keycloak directory doesn't exist
-if [ "$IS_FRESH_INSTALL" = true ] || [ ! -d "$KEYCLOAK_DIR" ]; then
+# Check if Keycloak has been configured by checking for client_secret in master config
+KEYCLOAK_CONFIGURED=false
+MASTER_CONFIG="$SCRIPT_DIR/instance/configs/master_config.json"
+if [ -f "$MASTER_CONFIG" ]; then
+    if grep -q "client_secret" "$MASTER_CONFIG"; then
+        KEYCLOAK_CONFIGURED=true
+    fi
+fi
+
+# Configure Keycloak if:
+# 1. Keycloak was just downloaded fresh (KEYCLOAK_FRESH_INSTALL=true) - database is empty
+# 2. OR Keycloak config doesn't have client_secret (KEYCLOAK_CONFIGURED=false) - never configured
+if [ "$KEYCLOAK_FRESH_INSTALL" = true ] || [ "$KEYCLOAK_CONFIGURED" = false ]; then
     echo "================================================================"
     echo "  Step 8: Configure Keycloak"
     echo "================================================================"
     echo ""
 
-    if [ ! -d "$KEYCLOAK_DIR" ]; then
-        echo -e "${YELLOW}⚠ Keycloak directory not found - will reconfigure${NC}"
+    if [ "$KEYCLOAK_FRESH_INSTALL" = true ]; then
+        echo -e "${YELLOW}Fresh Keycloak installation detected - configuring realm and users${NC}"
         echo ""
     fi
 
@@ -520,8 +561,8 @@ else
     echo "  Step 8: Keycloak Already Configured"
     echo "================================================================"
     echo ""
-    echo -e "${GREEN}✓ Keycloak configuration found (skipping)${NC}"
-    echo -e "${BLUE}  To reconfigure: rm instance/helm.conf or rm -rf $KEYCLOAK_DIR${NC}"
+    echo -e "${GREEN}✓ Keycloak realm and users already configured (skipping)${NC}"
+    echo -e "${BLUE}  To reconfigure: rm -rf $KEYCLOAK_DIR (will trigger full reconfiguration)${NC}"
     echo ""
 fi
 
