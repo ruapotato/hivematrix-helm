@@ -288,9 +288,54 @@ class InstallManager:
         except subprocess.CalledProcessError as e:
             return False, f"Failed to pull {app_key}: {e.stderr}"
 
+    def scan_all_services(self) -> Dict[str, Dict]:
+        """Scan parent directory for all hivematrix-* services with run.py"""
+        discovered = {}
+
+        # Scan for all hivematrix-* directories
+        for item in self.parent_dir.iterdir():
+            if not item.is_dir():
+                continue
+
+            # Check if it's a hivematrix service
+            if not item.name.startswith('hivematrix-'):
+                continue
+
+            # Skip helm itself
+            if item.name == 'hivematrix-helm':
+                continue
+
+            # Check if it has run.py (indicates it's a Flask service)
+            if not (item / 'run.py').exists():
+                continue
+
+            # Extract service name
+            service_name = item.name.replace('hivematrix-', '')
+
+            # Check if it's in the registry
+            app_info = self.registry['core_apps'].get(service_name) or \
+                      self.registry['default_apps'].get(service_name)
+
+            if app_info:
+                # Use registry info
+                discovered[service_name] = app_info
+            else:
+                # Auto-detect - create default config
+                # Assign port based on hash of service name to avoid conflicts
+                port_base = 5000 + (hash(service_name) % 900)  # 5000-5900 range
+                discovered[service_name] = {
+                    'name': f'HiveMatrix {service_name.title()}',
+                    'description': f'Auto-detected service: {service_name}',
+                    'port': port_base,
+                    'required': False
+                }
+
+        return discovered
+
     def update_services_json(self):
-        """Update services.json with installed apps"""
-        installed = self.get_installed_apps()
+        """Update services.json with ALL discovered services (not just registry)"""
+        # Scan for all services
+        discovered = self.scan_all_services()
         services = {}
 
         # Add Keycloak if installed
@@ -326,29 +371,26 @@ class InstallManager:
             "admin_only": True  # Only admins should access orchestration interface
         }
 
-        # Add installed apps
-        for app_key in installed:
-            app_info = self.registry['core_apps'].get(app_key) or \
-                      self.registry['default_apps'].get(app_key)
-            if app_info:
-                # Nexus uses HTTPS on port 443, other services use HTTP
-                protocol = "https" if app_key == "nexus" and app_info['port'] == 443 else "http"
-                service_config = {
-                    "url": f"{protocol}://localhost:{app_info['port']}",
-                    "path": f"../hivematrix-{app_key}",
-                    "port": app_info['port'],
-                    "python_bin": "pyenv/bin/python",
-                    "run_script": "run.py"
-                }
+        # Add all discovered services
+        for service_name, app_info in discovered.items():
+            # Nexus uses HTTPS on port 443, other services use HTTP
+            protocol = "https" if service_name == "nexus" and app_info['port'] == 443 else "http"
+            service_config = {
+                "url": f"{protocol}://localhost:{app_info['port']}",
+                "path": f"../hivematrix-{service_name}",
+                "port": app_info['port'],
+                "python_bin": "pyenv/bin/python",
+                "run_script": "run.py"
+            }
 
-                # Infrastructure services (core, nexus) should not be visible in sidebar
-                # They are accessed indirectly - core for auth, nexus as the proxy
-                if app_key in ['core', 'nexus']:
-                    service_config['visible'] = False
-                else:
-                    service_config['visible'] = True
+            # Infrastructure services (core, nexus) should not be visible in sidebar
+            # They are accessed indirectly - core for auth, nexus as the proxy
+            if service_name in ['core', 'nexus']:
+                service_config['visible'] = False
+            else:
+                service_config['visible'] = True
 
-                services[app_key] = service_config
+            services[service_name] = service_config
 
         # Write services.json
         with open(self.services_json, 'w') as f:
