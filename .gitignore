@@ -36,3 +36,5 @@ Thumbs.db
 
 # Environment
 .env
+services.json
+master_services.json
