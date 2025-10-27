@@ -291,24 +291,48 @@ case "$MODULE_NAME" in
         echo -e "${YELLOW}Neo4j database setup for $MODULE_NAME${NC}"
         echo ""
 
-        if ! command -v neo4j &> /dev/null; then
-            echo -e "${RED}✗ Neo4j is not installed${NC}"
+        # Check if Neo4j is running
+        if ! command -v neo4j &> /dev/null && ! nc -z localhost 7687 2>/dev/null; then
+            echo -e "${YELLOW}⚠ Neo4j doesn't appear to be installed or running${NC}"
             echo ""
-            echo "Please install Neo4j first:"
-            echo "  Visit: https://neo4j.com/download/"
+            echo "KnowledgeTree requires Neo4j to be running."
+            echo "Install Neo4j: https://neo4j.com/download/"
             echo ""
-            exit 1
+            echo "After installing Neo4j:"
+            echo "  1. Start Neo4j: sudo systemctl start neo4j"
+            echo "  2. Set initial password: neo4j-admin set-initial-password <password>"
+            echo "  3. Re-run this installer"
+            echo ""
+            read -p "Continue anyway? (y/n): " CONTINUE
+            if [ "$CONTINUE" != "y" ]; then
+                exit 1
+            fi
         fi
 
         echo -e "${BLUE}Enter Neo4j connection details:${NC}"
-        read -p "Neo4j URI [bolt://localhost:7687]: " NEO4J_URI
-        NEO4J_URI=${NEO4J_URI:-bolt://localhost:7687}
 
-        read -p "Neo4j User [neo4j]: " NEO4J_USER
-        NEO4J_USER=${NEO4J_USER:-neo4j}
+        # Use defaults or prompt
+        NEO4J_URI="bolt://localhost:7687"
+        NEO4J_USER="neo4j"
+
+        echo "Neo4j URI: $NEO4J_URI"
+        echo "Neo4j User: $NEO4J_USER"
+        echo ""
 
         read -s -p "Neo4j Password: " NEO4J_PASSWORD
         echo ""
+        read -s -p "Confirm password: " NEO4J_PASSWORD_CONFIRM
+        echo ""
+
+        if [ "$NEO4J_PASSWORD" != "$NEO4J_PASSWORD_CONFIRM" ]; then
+            echo -e "${RED}✗ Passwords do not match${NC}"
+            exit 1
+        fi
+
+        if [ -z "$NEO4J_PASSWORD" ]; then
+            echo -e "${RED}✗ Password cannot be empty${NC}"
+            exit 1
+        fi
 
         echo ""
         echo -e "${YELLOW}Running init_db.py to setup Neo4j...${NC}"
