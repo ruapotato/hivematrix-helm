@@ -98,16 +98,22 @@
         <div class="card">
             <div class="card__header">
                 <h2 class="card__title">📦 Available Modules</h2>
-                <p>Official HiveMatrix modules ready to install</p>
+                <p>Official HiveMatrix modules - Use CLI to install</p>
             </div>
             <div class="card__body">
+                <div style="background: #f5f5f5; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+                    <p><strong>Installation Instructions:</strong></p>
+                    <p>Modules must be installed using the command-line tool for proper database setup:</p>
+                    <pre style="background: #fff; padding: 0.5rem; margin-top: 0.5rem;">cd hivematrix-helm
+sudo ./install &lt;module_name&gt;</pre>
+                </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Module</th>
                             <th>Description</th>
                             <th>Port</th>
-                            <th>Actions</th>
+                            <th>Install Command</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -117,9 +123,9 @@
                             <td>{{ module.description }}</td>
                             <td>{{ module.port }}</td>
                             <td>
-                                <button class="btn btn--small btn--primary" onclick="installModule('{{ module.id }}')">
-                                    <span class="btn__label">Install</span>
-                                </button>
+                                <code style="background: #f0f0f0; padding: 0.25rem 0.5rem; border-radius: 3px;">
+                                    ./install {{ module.id }}
+                                </code>
                             </td>
                         </tr>
                         {% endfor %}
