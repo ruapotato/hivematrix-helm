@@ -262,13 +262,23 @@ case "$MODULE_NAME" in
 
         if [ "$RECREATE_DB" == "true" ]; then
             # New database - run in non-interactive mode
-            run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
-                --db-host localhost \
-                --db-port 5432 \
-                --db-name '$DB_NAME' \
-                --db-user '$DB_USER' \
-                --db-password '$DB_PASSWORD' \
-                --create-sample-data"
+            # Add --create-sample-data only for modules that support it
+            if [ "$MODULE_NAME" == "codex" ] || [ "$MODULE_NAME" == "ledger" ]; then
+                run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
+                    --db-host localhost \
+                    --db-port 5432 \
+                    --db-name '$DB_NAME' \
+                    --db-user '$DB_USER' \
+                    --db-password '$DB_PASSWORD' \
+                    --create-sample-data"
+            else
+                run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
+                    --db-host localhost \
+                    --db-port 5432 \
+                    --db-name '$DB_NAME' \
+                    --db-user '$DB_USER' \
+                    --db-password '$DB_PASSWORD'"
+            fi
         else
             # Existing database - run migration only
             run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
