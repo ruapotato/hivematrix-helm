@@ -122,10 +122,59 @@ def metrics_view():
 
     statuses = ServiceManager.get_all_service_statuses()
 
+    # Calculate actual uptime for running services
+    for service_name, status in statuses.items():
+        if status.get('status') == 'running' and status.get('started_at'):
+            # Calculate uptime for running services
+            started_at = status['started_at']
+            if isinstance(started_at, str):
+                started_at = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+
+            now = datetime.utcnow()
+            delta = now - started_at.replace(tzinfo=None)
+            total_seconds = int(delta.total_seconds())
+
+            # Format uptime
+            if total_seconds < 60:
+                uptime = f"{total_seconds}s"
+            elif total_seconds < 3600:
+                minutes = total_seconds // 60
+                uptime = f"{minutes}m"
+            elif total_seconds < 86400:
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                uptime = f"{hours}h {minutes}m" if minutes > 0 else f"{hours}h"
+            else:
+                days = total_seconds // 86400
+                hours = (total_seconds % 86400) // 3600
+                uptime = f"{days}d {hours}h" if hours > 0 else f"{days}d"
+
+            status['uptime'] = uptime
+        else:
+            status['uptime'] = '-'
+
+    # Get recent log statistics
+    log_stats = {}
+    for service_name in statuses.keys():
+        # Count logs by level in last hour
+        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+
+        counts = (
+            LogEntry.query
+            .filter(LogEntry.service_name == service_name)
+            .filter(LogEntry.timestamp >= one_hour_ago)
+            .with_entities(LogEntry.level, func.count(LogEntry.id))
+            .group_by(LogEntry.level)
+            .all()
+        )
+
+        log_stats[service_name] = {level: count for level, count in counts}
+
     return render_template(
         'metrics.html',
         user=g.user,
-        statuses=statuses
+        statuses=statuses,
+        log_stats=log_stats
     )
 
 

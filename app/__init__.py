@@ -78,3 +78,46 @@ def start_log_watcher_thread():
 logs_dir = Path('logs')
 if logs_dir.exists():
     start_log_watcher_thread()
+
+# Add custom Jinja2 filters
+from datetime import datetime
+
+@app.template_filter('format_uptime')
+def format_uptime(timestamp_str):
+    """Convert ISO timestamp to human-readable uptime"""
+    if not timestamp_str:
+        return '-'
+
+    try:
+        # Parse ISO format timestamp
+        if isinstance(timestamp_str, str):
+            started_at = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        else:
+            started_at = timestamp_str
+
+        # Calculate uptime
+        now = datetime.utcnow()
+        delta = now - started_at.replace(tzinfo=None)
+
+        # Format based on duration
+        total_seconds = int(delta.total_seconds())
+
+        if total_seconds < 60:
+            return f"{total_seconds}s"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            return f"{minutes}m"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            if minutes > 0:
+                return f"{hours}h {minutes}m"
+            return f"{hours}h"
+        else:
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            if hours > 0:
+                return f"{days}d {hours}h"
+            return f"{days}d"
+    except Exception as e:
+        return '-'

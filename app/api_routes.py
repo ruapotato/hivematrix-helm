@@ -538,6 +538,89 @@ def get_user_groups(user_id):
     return {'error': 'Failed to fetch user groups'}, response.status_code
 
 
+@app.route('/api/keycloak/users/<user_id>/groups', methods=['PUT'])
+@admin_required
+def update_user_groups(user_id):
+    """
+    Update user's group membership (replaces all groups).
+    Expects JSON body: {"groups": ["admins", "technicians", ...]}
+    """
+    token = get_keycloak_admin_token()
+    if not token:
+        return {'error': 'Failed to authenticate with Keycloak'}, 500
+
+    data = request.get_json()
+    if not data or 'groups' not in data:
+        return {'error': 'Missing "groups" in request body'}, 400
+
+    desired_groups = set(data['groups'])
+    keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
+    realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
+    headers = {'Authorization': f'Bearer {token}'}
+
+    # Get current groups
+    groups_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups"
+    current_response = http_requests.get(groups_url, headers=headers)
+
+    if current_response.status_code != 200:
+        return {'error': 'Failed to fetch current user groups'}, current_response.status_code
+
+    current_groups = {g['name']: g['id'] for g in current_response.json()}
+
+    # Get all available groups (to find IDs for desired groups)
+    all_groups_url = f"{keycloak_url}/admin/realms/{realm}/groups"
+    all_groups_response = http_requests.get(all_groups_url, headers=headers)
+
+    if all_groups_response.status_code != 200:
+        return {'error': 'Failed to fetch available groups'}, all_groups_response.status_code
+
+    available_groups = {g['name']: g['id'] for g in all_groups_response.json()}
+
+    # Determine which groups to add and remove
+    groups_to_add = desired_groups - set(current_groups.keys())
+    groups_to_remove = set(current_groups.keys()) - desired_groups
+
+    errors = []
+
+    # Remove user from unwanted groups
+    for group_name in groups_to_remove:
+        if group_name in current_groups:
+            group_id = current_groups[group_name]
+            remove_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups/{group_id}"
+            remove_response = http_requests.delete(remove_url, headers=headers)
+
+            if remove_response.status_code != 204:
+                errors.append(f'Failed to remove from group {group_name}')
+
+    # Add user to new groups
+    for group_name in groups_to_add:
+        if group_name in available_groups:
+            group_id = available_groups[group_name]
+            add_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}/groups/{group_id}"
+            add_response = http_requests.put(add_url, headers=headers)
+
+            if add_response.status_code != 204:
+                errors.append(f'Failed to add to group {group_name}')
+        else:
+            errors.append(f'Group {group_name} does not exist')
+
+    if errors:
+        return {
+            'success': False,
+            'message': 'Partial success with errors',
+            'errors': errors,
+            'added': list(groups_to_add),
+            'removed': list(groups_to_remove)
+        }, 207  # 207 Multi-Status
+
+    return {
+        'success': True,
+        'message': 'Groups updated successfully',
+        'added': list(groups_to_add),
+        'removed': list(groups_to_remove)
+    }
+
+
 @app.route('/api/keycloak/users/<user_id>/groups/<group_id>', methods=['PUT'])
 @admin_required
 def add_user_to_group(user_id, group_id):
