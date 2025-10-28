@@ -87,7 +87,6 @@
                             <th>CPU %</th>
                             <th>Memory (MB)</th>
                             <th>Logs (1h)</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -140,26 +139,6 @@
                                     <span class="log-stats">-</span>
                                 {% endif %}
                             </td>
-                            <td class="actions-cell" data-is-admin="{{ 'true' if user.permission_level == 'admin' else 'false' }}">
-                                {% if user.permission_level == 'admin' %}
-                                    <div class="action-icons">
-                                        {% if status.status == 'running' %}
-                                            <span class="icon-wrapper" data-tooltip="Stop" onclick="controlService('{{ service_name }}', 'stop')">
-                                                <i data-lucide="stop-circle" class="action-icon action-icon--danger"></i>
-                                            </span>
-                                            <span class="icon-wrapper" data-tooltip="Restart" onclick="controlService('{{ service_name }}', 'restart')">
-                                                <i data-lucide="refresh-cw" class="action-icon action-icon--neutral"></i>
-                                            </span>
-                                        {% else %}
-                                            <span class="icon-wrapper" data-tooltip="Start" onclick="controlService('{{ service_name }}', 'start')">
-                                                <i data-lucide="play-circle" class="action-icon action-icon--success"></i>
-                                            </span>
-                                        {% endif %}
-                                    </div>
-                                {% else %}
-                                    <em>Admin only</em>
-                                {% endif %}
-                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -182,39 +161,6 @@
         function navigateTo(path) {
             const basePath = getBasePath();
             window.location.href = basePath + path;
-        }
-
-        function controlService(serviceName, action) {
-            if (!confirm(`Are you sure you want to ${action} ${serviceName}?`)) {
-                return;
-            }
-
-            const basePath = getBasePath();
-            fetch(`${basePath}/api/services/${serviceName}/${action}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + getAuthToken()
-                },
-                body: JSON.stringify({ mode: 'development' })
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Show brief success message
-                const message = data.message || 'Action completed';
-                alert(message);
-                // Immediately update dashboard to show new status
-                updateDashboard();
-            })
-            .catch(error => {
-                alert('Error: ' + error);
-            });
-        }
-
-        function getAuthToken() {
-            // This would normally come from the session or cookie
-            // For now, we assume Nexus handles auth via session
-            return '';
         }
 
         // Check security status on load
@@ -322,33 +268,6 @@
                         html += `<span class="status-text status-text--info">I: ${stats.INFO}</span>`;
                     }
                     logStatsCell.innerHTML = html || '-';
-                }
-
-                // Update action icons based on status
-                const actionsCell = row.querySelector('.actions-cell');
-                if (actionsCell && actionsCell.getAttribute('data-is-admin') === 'true') {
-                    if (status.status === 'running') {
-                        actionsCell.innerHTML = `
-                            <div class="action-icons">
-                                <span class="icon-wrapper" data-tooltip="Stop" onclick="controlService('${serviceName}', 'stop')">
-                                    <i data-lucide="stop-circle" class="action-icon action-icon--danger"></i>
-                                </span>
-                                <span class="icon-wrapper" data-tooltip="Restart" onclick="controlService('${serviceName}', 'restart')">
-                                    <i data-lucide="refresh-cw" class="action-icon action-icon--neutral"></i>
-                                </span>
-                            </div>
-                        `;
-                    } else {
-                        actionsCell.innerHTML = `
-                            <div class="action-icons">
-                                <span class="icon-wrapper" data-tooltip="Start" onclick="controlService('${serviceName}', 'start')">
-                                    <i data-lucide="play-circle" class="action-icon action-icon--success"></i>
-                                </span>
-                            </div>
-                        `;
-                    }
-                    // Re-initialize Lucide icons after updating HTML
-                    lucide.createIcons();
                 }
             });
         }
