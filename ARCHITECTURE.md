@@ -1,6 +1,6 @@
 # HiveMatrix Architecture & AI Development Guide
 
-**Version 3.9**
+**Version 4.0**
 
 ## 1. Core Philosophy & Goals
 
@@ -1779,7 +1779,408 @@ This will automatically create entries in both `master_services.json` and `servi
 
 **Important:** Always use `apps_registry.json` as the source of truth and let `install_manager.py update-config` generate the other files. Manual edits to `services.json` or `master_services.json` will be overwritten on the next config update.
 
-## 14. Version History
+## 14. Brainhair AI Assistant & Approval Flow
+
+**Brainhair** is the AI assistant service that enables natural language interaction with the HiveMatrix platform. It provides Claude AI integration for performing administrative tasks, answering questions, and managing system operations.
+
+**Design Goal:** Brainhair should be able to manage **everything** in the HiveMatrix platform. Any administrative task that can be performed through the web interface should also be accessible via natural language commands through Brainhair. This includes creating, reading, updating, and deleting data across all services (Codex, Ledger, Resolve, Archive, etc.).
+
+### Architecture
+
+Brainhair consists of:
+- **Web Interface** (port 5050): Chat interface for Claude AI conversations
+- **AI Tools**: Python scripts in `ai_tools/` directory that perform system operations
+- **Approval System**: User approval mechanism for write operations
+
+### AI Tools Pattern
+
+AI tools are standalone Python scripts that:
+1. Accept command-line arguments for parameters
+2. Use service-to-service authentication to call other HiveMatrix APIs
+3. Request user approval before performing write operations
+4. Print results to stdout for the AI to parse
+
+**Example Tool Structure:**
+```python
+#!/path/to/pyenv/bin/python
+"""
+Tool Description
+
+Usage:
+    python tool_name.py <company> <action>
+"""
+
+import sys
+import os
+import requests
+
+# Import approval helper for write operations
+sys.path.insert(0, os.path.dirname(__file__))
+from approval_helper import request_approval
+
+# Service URLs from environment
+CORE_URL = os.getenv('CORE_SERVICE_URL', 'http://localhost:5000')
+LEDGER_URL = os.getenv('LEDGER_SERVICE_URL', 'http://localhost:5030')
+
+def get_service_token(target_service):
+    """Get service token from Core for API calls."""
+    response = requests.post(
+        f"{CORE_URL}/service-token",
+        json={
+            "calling_service": "brainhair",
+            "target_service": target_service
+        }
+    )
+    return response.json()["token"]
+
+def perform_action(data):
+    """Perform the action (read-only operation)."""
+    token = get_service_token("ledger")
+    response = requests.get(
+        f"{LEDGER_URL}/api/data",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    return response.json()
+
+def main():
+    # Parse arguments
+    # ... argument parsing ...
+
+    # For write operations, request approval first
+    approved = request_approval(
+        "Action description",
+        {
+            'Company': company_name,
+            'Field': 'Value',
+            'Amount': '$100.00'
+        }
+    )
+
+    if not approved:
+        print("✗ User denied the change")
+        sys.exit(1)
+
+    # Perform the approved action
+    result = perform_action(data)
+    print(f"✓ Action completed: {result}")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Approval Flow for Write Operations
+
+**Critical Rule:** All AI tools that perform write operations (create, update, delete) **must** request user approval before executing the change.
+
+#### How Approval Works
+
+The approval system uses a file-based IPC (Inter-Process Communication) mechanism to enable real-time user approval in the browser while the tool waits for a response.
+
+**Flow:**
+1. **Tool requests approval**: Calls `request_approval(action, details)`
+2. **File creation**: Creates `/tmp/brainhair_approval_request_{session_id}_{timestamp}.json`
+3. **Browser detection**: Chat polling endpoint finds the approval file
+4. **Modal display**: Browser shows approval dialog with action details
+5. **User decision**: User clicks "Approve" or "Deny"
+6. **Response file**: Browser writes `/tmp/brainhair_approval_response_{approval_id}.json`
+7. **Tool reads response**: Tool polls for response file and continues/exits based on decision
+
+#### Approval Helper (`ai_tools/approval_helper.py`)
+
+```python
+def request_approval(action: str, details: dict, timeout: int = 120) -> bool:
+    """
+    Request user approval for a write operation.
+
+    Args:
+        action: Description of the action (e.g., "Update billing rates for Company X")
+        details: Dictionary of details to show user (e.g., {'Company': 'X', 'Amount': '$100'})
+        timeout: Maximum seconds to wait for user response (default: 120)
+
+    Returns:
+        True if user approved, False if denied or timeout
+    """
+    session_id = os.environ.get('BRAINHAIR_SESSION_ID')
+    approval_id = f"{session_id}_{int(time.time() * 1000)}"
+
+    # Write approval request file
+    request_file = f"/tmp/brainhair_approval_request_{approval_id}.json"
+    with open(request_file, 'w') as f:
+        json.dump({
+            'type': 'approval_request',
+            'approval_id': approval_id,
+            'session_id': session_id,
+            'action': action,
+            'details': details
+        }, f)
+
+    # Poll for response file
+    response_file = f"/tmp/brainhair_approval_response_{approval_id}.json"
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        if os.path.exists(response_file):
+            with open(response_file, 'r') as f:
+                response = json.load(f)
+
+            # Cleanup
+            os.remove(request_file)
+            os.remove(response_file)
+
+            return response.get('approved', False)
+
+        time.sleep(0.5)
+
+    # Timeout - cleanup and return False
+    if os.path.exists(request_file):
+        os.remove(request_file)
+
+    return False
+```
+
+#### Browser Integration
+
+The chat interface polls for approval requests and handles user responses:
+
+```javascript
+// In chat polling loop
+if (chunk.type === 'approval_request') {
+    showApprovalDialog(chunk);
+}
+
+function showApprovalDialog(approvalData) {
+    // Show modal with action and details
+    document.getElementById('approval-action').textContent = approvalData.action;
+
+    // Populate details table
+    const detailsTable = document.getElementById('approval-details');
+    for (const [key, value] of Object.entries(approvalData.details)) {
+        // Add row for each detail
+    }
+
+    // Show modal
+    document.getElementById('approval-dialog').style.display = 'block';
+}
+
+function respondToApproval(approved) {
+    // Write response file
+    fetch('/api/chat/approval-response', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            approval_id: currentApprovalId,
+            approved: approved
+        })
+    });
+
+    // Hide modal
+    document.getElementById('approval-dialog').style.display = 'none';
+}
+```
+
+#### Tools That Require Approval
+
+**Write operations** that modify data:
+- `update_billing.py` - Change billing rates and add line items
+- `set_company_plan.py` - Assign/change company billing plans
+- `manage_network_equipment.py` - Add/remove network equipment
+- `update_features.py` - Modify feature overrides
+
+**Read operations** that do NOT require approval:
+- `list_companies.py` - View company data
+- `view_billing.py` - Display billing information
+- `get_company_plan.py` - Show current plan details
+
+### Environment Variables
+
+Brainhair sets environment variables for tools:
+- `BRAINHAIR_SESSION_ID`: Current chat session ID for approval tracking
+- `CORE_SERVICE_URL`: Core service URL for token requests
+- `LEDGER_SERVICE_URL`: Ledger service URL
+- `CODEX_SERVICE_URL`: Codex service URL
+
+### Adding New AI Tools
+
+When creating a new AI tool:
+
+1. **Read-only tool:** No special requirements, just query APIs and print results
+2. **Write tool:** Must use approval_helper:
+   ```python
+   from approval_helper import request_approval
+
+   approved = request_approval(
+       "Clear, concise action description",
+       {
+           'Detail 1': 'value',
+           'Detail 2': 'value'
+       }
+   )
+
+   if not approved:
+       print("✗ User denied the change")
+       sys.exit(1)
+   ```
+3. Make executable: `chmod +x ai_tools/your_tool.py`
+4. Add shebang: `#!/path/to/brainhair/pyenv/bin/python`
+5. Document usage in docstring
+
+### PHI/CJIS Filtering
+
+**Critical Security Feature:** Brainhair implements automatic PHI (Protected Health Information) and CJIS (Criminal Justice Information Systems) data filtering to prevent sensitive information from being exposed to the AI or logged inappropriately.
+
+#### How Filtering Works
+
+Brainhair uses **Microsoft Presidio** for automated detection and anonymization of sensitive data in tool responses. All data that flows through Brainhair's API endpoints is automatically filtered before being sent to Claude or displayed to users.
+
+**Filtered Entity Types:**
+
+**PHI Entities:**
+- PERSON (names) - Anonymized to "FirstName L." format
+- EMAIL_ADDRESS - Replaced with `<EMAIL_ADDRESS>`
+- PHONE_NUMBER - Replaced with `<PHONE_NUMBER>`
+- US_SSN - Replaced with `<US_SSN>`
+- DATE_TIME - Replaced with `<DATE_TIME>`
+- LOCATION - Replaced with `<LOCATION>`
+- MEDICAL_LICENSE - Replaced with `<MEDICAL_LICENSE>`
+- US_DRIVER_LICENSE - Replaced with `<US_DRIVER_LICENSE>`
+- US_PASSPORT - Replaced with `<US_PASSPORT>`
+- CREDIT_CARD - Replaced with `<CREDIT_CARD>`
+- IP_ADDRESS - Replaced with `<IP_ADDRESS>`
+
+**CJIS Entities:**
+- PERSON, US_SSN, US_DRIVER_LICENSE, DATE_TIME, LOCATION, IP_ADDRESS
+
+#### Filtering in AI Tools
+
+AI tools automatically apply PHI filtering when querying data from other services:
+
+```python
+# Example: list_tickets.py
+def list_tickets(source="codex", company_id=None, status=None, filter_type="phi", limit=50):
+    """
+    List tickets with PHI/CJIS filtering.
+
+    Args:
+        filter_type: Type of filter to apply ("phi" or "cjis")
+    """
+    auth = get_auth()
+
+    # Filter parameter is automatically applied by Brainhair API
+    params = {"filter": filter_type}
+
+    response = auth.get("/api/codex/tickets", params=params)
+    # Response data is already filtered by Brainhair
+```
+
+When an AI tool calls a Brainhair API endpoint with `?filter=phi` or `?filter=cjis`, the response is automatically filtered before being returned.
+
+#### Presidio Filter Implementation
+
+The filtering is handled by `app/presidio_filter.py`:
+
+```python
+from presidio_analyzer import AnalyzerEngine
+from presidio_anonymizer import AnonymizerEngine
+
+class PresidioFilter:
+    def filter_phi(self, data):
+        """Filter PHI from data (dict, list, or str)"""
+        # Analyzes text for PHI entities
+        # Anonymizes detected entities
+        # Returns filtered data
+
+    def filter_cjis(self, data):
+        """Filter CJIS data from data"""
+        # Similar to PHI but with CJIS entity types
+```
+
+#### Example: Before and After Filtering
+
+**Before filtering:**
+```json
+{
+  "requester": "John Smith",
+  "email": "john.smith@example.com",
+  "phone": "555-123-4567",
+  "description": "Need help with SSN 123-45-6789",
+  "ip_address": "192.168.1.100"
+}
+```
+
+**After PHI filtering:**
+```json
+{
+  "requester": "John S.",
+  "email": "<EMAIL_ADDRESS>",
+  "phone": "<PHONE_NUMBER>",
+  "description": "Need help with SSN <US_SSN>",
+  "ip_address": "<IP_ADDRESS>"
+}
+```
+
+#### Custom Anonymizers
+
+Brainhair includes custom anonymization operators:
+- **FirstNameLastInitialOperator**: Converts "John Smith" to "John S." (preserves first name, shows last initial)
+- This provides better context for the AI while still protecting identity
+
+#### When to Use Each Filter
+
+- **PHI Filter** (default): Use for healthcare, MSP client data, general user information
+- **CJIS Filter**: Use for law enforcement, criminal justice, government systems data
+
+**Tools that use filtering:**
+- `list_tickets.py` - Filters ticket data
+- `list_companies.py` - Filters company contact information
+- `list_devices.py` - Filters device and user data
+- `search_knowledge.py` - Filters knowledge base content
+
+#### Disabling Filtering (Advanced)
+
+Filtering can be bypassed by passing `filter=none` in API requests, but this should only be done:
+1. For internal system operations that require full data
+2. When the user has proper authorization
+3. In controlled environments where PHI exposure is acceptable
+
+**Most AI tools should always use PHI filtering by default.**
+
+### Security Considerations
+
+- Tools run with **service-level authentication** (bypass user permission checks)
+- Approval system ensures human oversight for all write operations
+- Session ID tracking prevents cross-session approval hijacking
+- Timeout prevents tools from hanging indefinitely (default: 120 seconds)
+- Approval files are cleaned up after use to prevent file system bloat
+- **PHI/CJIS filtering** prevents sensitive data exposure to AI and logs
+
+### Debugging
+
+View Brainhair logs:
+```bash
+cd hivematrix-helm
+source pyenv/bin/activate
+python logs_cli.py brainhair --tail 50
+```
+
+Test approval flow:
+```bash
+# Set session ID (get from browser console)
+export BRAINHAIR_SESSION_ID="session_abc123"
+
+# Run tool manually
+cd hivematrix-brainhair
+./ai_tools/update_billing.py "Company Name" --per-user 100
+```
+
+Check for approval files:
+```bash
+ls -la /tmp/brainhair_approval_*
+```
+
+## 15. Version History
+
+- **4.0** - **Brainhair AI Assistant & Approval Flow**: Added comprehensive documentation for Brainhair AI assistant service including AI tools pattern, approval flow for write operations, file-based IPC mechanism, browser integration, PHI/CJIS filtering with Microsoft Presidio, security considerations, and debugging guides. All write operations in AI tools (update_billing.py, set_company_plan.py, manage_network_equipment.py, update_features.py) now require explicit user approval before execution via approval_helper.py. Automatic PHI filtering protects sensitive information in tool responses using Presidio entity detection and anonymization.
 
 - **3.9** - **Dynamic Service Discovery & Keycloak Auto-Configuration**: Added `scan_all_services()` to `install_manager.py` for automatic detection of all `hivematrix-*` services (not just registry). Services are discovered on every `start.sh` run, allowing manual copies and git pulls to work seamlessly. Enhanced Keycloak setup with intelligent synchronization between Keycloak database and `master_config.json` - tracks fresh Keycloak installations (`KEYCLOAK_FRESH_INSTALL`), clears old config when reinstalling, and ensures realm/users are always configured. Two-way sync prevents configuration drift. Both improvements make the system more resilient and reduce manual configuration.
 
