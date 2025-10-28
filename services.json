@@ -17,22 +17,6 @@
     "visible": true,
     "admin_only": true
   },
-  "nexus": {
-    "url": "https://localhost:443",
-    "path": "../hivematrix-nexus",
-    "port": 443,
-    "python_bin": "pyenv/bin/python",
-    "run_script": "run.py",
-    "visible": false
-  },
-  "knowledgetree": {
-    "url": "http://localhost:5020",
-    "path": "../hivematrix-knowledgetree",
-    "port": 5020,
-    "python_bin": "pyenv/bin/python",
-    "run_script": "run.py",
-    "visible": true
-  },
   "core": {
     "url": "http://localhost:5000",
     "path": "../hivematrix-core",
@@ -56,6 +40,22 @@
     "python_bin": "pyenv/bin/python",
     "run_script": "run.py",
     "visible": true
+  },
+  "knowledgetree": {
+    "url": "http://localhost:5020",
+    "path": "../hivematrix-knowledgetree",
+    "port": 5020,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": true
+  },
+  "nexus": {
+    "url": "https://localhost:443",
+    "path": "../hivematrix-nexus",
+    "port": 443,
+    "python_bin": "pyenv/bin/python",
+    "run_script": "run.py",
+    "visible": false
   },
   "codex": {
     "url": "http://localhost:5010",

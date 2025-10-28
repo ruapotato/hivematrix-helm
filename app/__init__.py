@@ -62,7 +62,6 @@ app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{app.config["SERVICE_NAM
 # Import routes
 from app import routes
 from app import api_routes
-from app import app_manager_routes
 
 # Start log file watcher in background thread
 import threading
