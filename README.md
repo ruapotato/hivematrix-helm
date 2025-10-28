@@ -578,9 +578,80 @@ Access at `http://localhost:5004/` (requires Keycloak, Core, and Nexus to be run
 **Features:**
 - **Service Overview** - View status of all services
 - **Service Control** - Start/stop/restart services (admin only)
-- **Live Logs** - View logs from all services
-- **Metrics** - CPU, memory, performance data
-- **Service Details** - Detailed view per service
+- **Live Logs** - View logs from all services with real-time streaming
+- **Metrics** - CPU, memory, uptime, and performance data
+- **Service Details** - Detailed view per service with process logs
+- **Security Audit** - Port binding analysis and firewall configuration
+- **Module Management** - Install/update/remove HiveMatrix modules
+- **User Management** - Manage Keycloak users and permissions
+
+#### Dashboard Pages
+
+All dashboard pages follow a consistent design system using Nexus's global CSS:
+
+1. **Index (/)** - Main dashboard with service overview table
+   - Real-time status updates (5-second polling)
+   - Service health indicators
+   - CPU/Memory usage
+   - Log statistics (errors, warnings, info)
+   - Quick action buttons (start/stop/restart) with icons
+
+2. **Logs (/logs)** - Centralized log viewer
+   - Live log streaming with auto-scroll
+   - Service and level filtering
+   - Search functionality
+   - Color-coded log levels
+
+3. **Metrics (/metrics)** - Performance metrics
+   - Service resource usage table
+   - Uptime tracking
+   - Auto-refresh every 5 seconds
+
+4. **Security (/security)** - Security audit tool
+   - Port binding analysis
+   - Firewall status check
+   - Security recommendations
+   - Firewall script generation (UFW/iptables)
+
+5. **Modules (/modules)** - Module management (admin only)
+   - Available and installed modules
+   - Installation logs modal
+   - Update and uninstall actions
+   - Custom module installation from Git
+
+6. **Users (/users)** - User management (admin only)
+   - Keycloak user CRUD operations
+   - Group management (admin, technician, billing, client)
+   - Password reset functionality
+   - Admin user deletion protection
+
+7. **Service Detail (/service/{name})** - Individual service view
+   - Detailed service information
+   - Recent application logs
+   - Service control buttons
+
+8. **Service Logs (/service/{name}/logs)** - Process output viewer
+   - View stdout/stderr from service processes
+   - Real-time process logs
+   - Filter by output type (both, stdout, stderr)
+
+9. **Apps (/apps)** - Application management (if configured)
+   - System dependencies
+   - Installed applications with git status
+   - Available applications (core and default)
+   - Install from Git functionality
+
+#### UI Design System
+
+All Helm templates use:
+- **Lucide Icons** - Modern, consistent iconography via CDN
+- **BEM CSS Classes** - From Nexus's global.css (no local stylesheets)
+- **Dark Mode Support** - Automatic theme switching via user preference
+- **Responsive Layout** - Card-based design with proper spacing
+- **Consistent Buttons** - Primary, secondary, danger, warning, success variants
+- **Status Indicators** - Color-coded text (not badges) for better accessibility
+- **Modal Dialogs** - For installation logs, user editing, password reset
+- **Tab Navigation** - For multi-section pages (apps, modules)
 
 ### API Endpoints
 

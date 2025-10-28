@@ -4,19 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metrics - Helm</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h1 class="card__title">Performance Metrics</h1>
-                <a href="/" class="btn btn--small">
-                    <span class="btn__label">← Back to Dashboard</span>
-                </a>
+                <div class="card__header-actions">
+                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                        <span class="btn__label">
+                            <i data-lucide="arrow-left" class="btn__icon"></i>
+                            Back to Dashboard
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h2 class="card__title">Service Resource Usage</h2>
             </div>
@@ -26,25 +32,36 @@
                         <tr>
                             <th>Service</th>
                             <th>Status</th>
+                            <th>Health</th>
+                            <th>Port</th>
+                            <th>PID</th>
                             <th>CPU %</th>
                             <th>Memory (MB)</th>
                             <th>Uptime</th>
+                            <th>Logs (1h)</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for service_name, status in statuses.items() %}
                         <tr>
                             <td>
-                                <a href="/service/{{ service_name }}">{{ service_name }}</a>
+                                <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;">{{ service_name }}</a>
                             </td>
                             <td>
-                                <span class="badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                <span class="status-text status-text--{{ 'success' if status.status == 'running' else 'danger' }}">
                                     {{ status.status }}
                                 </span>
                             </td>
                             <td>
+                                <span class="status-text status-text--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
+                                    {{ status.health }}
+                                </span>
+                            </td>
+                            <td>{{ status.configured_port or 'N/A' }}</td>
+                            <td>{{ status.pid or '-' }}</td>
+                            <td>
                                 {% if status.cpu_percent is not none %}
-                                    {{ "%.2f"|format(status.cpu_percent) }}%
+                                    {{ "%.1f"|format(status.cpu_percent) }}%
                                 {% else %}
                                     -
                                 {% endif %}
@@ -56,11 +73,23 @@
                                     -
                                 {% endif %}
                             </td>
+                            <td>{{ status.uptime }}</td>
                             <td>
-                                {% if status.started_at %}
-                                    {{ status.started_at }}
+                                {% set stats = log_stats.get(service_name, {}) %}
+                                {% if stats %}
+                                    <span class="log-stats">
+                                        {% if stats.get('ERROR', 0) > 0 %}
+                                            <span class="status-text status-text--danger">E: {{ stats.get('ERROR', 0) }}</span>
+                                        {% endif %}
+                                        {% if stats.get('WARNING', 0) > 0 %}
+                                            <span class="status-text status-text--warning">W: {{ stats.get('WARNING', 0) }}</span>
+                                        {% endif %}
+                                        {% if stats.get('INFO', 0) > 0 %}
+                                            <span class="status-text status-text--info">I: {{ stats.get('INFO', 0) }}</span>
+                                        {% endif %}
+                                    </span>
                                 {% else %}
-                                    -
+                                    <span class="log-stats">-</span>
                                 {% endif %}
                             </td>
                         </tr>
@@ -82,6 +111,24 @@
     </div>
 
     <script>
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        // Initialize Lucide icons
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+        });
+
         // Auto-refresh every 5 seconds
         setTimeout(() => location.reload(), 5000);
     </script>

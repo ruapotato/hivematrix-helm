@@ -4,18 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Management - HiveMatrix Helm</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h1 class="card__title">App Management</h1>
-                <p>Install and manage HiveMatrix applications</p>
+                <div class="card__header-actions">
+                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                        <span class="btn__label">
+                            <i data-lucide="arrow-left" class="btn__icon"></i>
+                            Back to Dashboard
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- System Dependencies -->
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h2 class="card__title">System Dependencies</h2>
             </div>
@@ -38,7 +46,7 @@
         </div>
 
         <!-- Installed Apps -->
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h2 class="card__title">Installed Applications</h2>
             </div>
@@ -120,18 +128,18 @@
 
                 <!-- Custom Git Install Tab -->
                 <div id="tab-custom" class="tab-content">
-                    <form id="custom-install-form" style="margin-top: 20px;">
+                    <form id="custom-install-form" class="u-mt-2">
                         <div class="form-group">
                             <label for="git-url">Git Repository URL:</label>
-                            <input type="text" id="git-url" placeholder="https://github.com/user/repo" required style="width: 100%; padding: 8px;">
+                            <input type="text" id="git-url" placeholder="https://github.com/user/repo" required class="form-group__input">
                         </div>
                         <div class="form-group">
                             <label for="app-name">App Name (lowercase, no spaces):</label>
-                            <input type="text" id="app-name" placeholder="myapp" required style="width: 100%; padding: 8px;">
+                            <input type="text" id="app-name" placeholder="myapp" required class="form-group__input">
                         </div>
                         <div class="form-group">
                             <label for="app-port">Port:</label>
-                            <input type="number" id="app-port" placeholder="5099" required style="width: 100%; padding: 8px;">
+                            <input type="number" id="app-port" placeholder="5099" required class="form-group__input">
                         </div>
                         <button type="submit" class="btn btn--primary">Install from Git</button>
                     </form>
@@ -140,12 +148,53 @@
         </div>
     </div>
 
-    <!-- Navigation -->
-    <div style="margin: 20px 0; text-align: center;">
-        <a href="#" onclick="navigateTo('/'); return false;" class="btn btn--secondary">← Back to Dashboard</a>
-    </div>
-
     <script>
+        function getBasePath() {
+            const path = window.location.pathname;
+            if (path.startsWith('/helm/')) {
+                return '/helm';
+            }
+            return '';
+        }
+
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
+        // Utility functions
+        function fetchJSON(url, options = {}) {
+            const basePath = getBasePath();
+            const fullUrl = url.startsWith('http') ? url : basePath + url;
+
+            if (!options.headers) {
+                options.headers = {};
+            }
+            if (options.body && !options.headers['Content-Type']) {
+                options.headers['Content-Type'] = 'application/json';
+            }
+
+            return fetch(fullUrl, options).then(res => res.json());
+        }
+
+        function showLoading(message) {
+            // Simple loading indicator - could be enhanced with a modal
+            console.log('Loading:', message);
+        }
+
+        function hideLoading() {
+            console.log('Loading complete');
+        }
+
+        function showNotification(message, type) {
+            // Simple notification using alert - could be enhanced with a toast
+            if (type === 'error') {
+                alert('Error: ' + message);
+            } else {
+                alert(message);
+            }
+        }
+
         let availableApps = {};
         let installedApps = {};
         let dependencies = {};
@@ -214,8 +263,8 @@
 
             for (const [name, installed] of Object.entries(dependencies)) {
                 const statusBadge = installed ?
-                    '<span class="badge badge--success">Installed</span>' :
-                    '<span class="badge badge--danger">Not Installed</span>';
+                    '<span class="status-text status-text--success">Installed</span>' :
+                    '<span class="status-text status-text--danger">Not Installed</span>';
 
                 const actions = !installed && {{ 'true' if user.permission_level == 'admin' else 'false' }} ?
                     `<button class="btn btn--small btn--primary" onclick="installDependency('${name}')">Install</button>` :
@@ -239,12 +288,12 @@
 
             for (const [key, app] of Object.entries(installedApps)) {
                 const gitStatusBadge = app.git_status === 'clean' ?
-                    '<span class="badge badge--success">Clean</span>' :
-                    '<span class="badge badge--warning">Modified</span>';
+                    '<span class="status-text status-text--success">Clean</span>' :
+                    '<span class="status-text status-text--warning">Modified</span>';
 
                 const updatesBadge = app.has_updates ?
-                    `<span class="badge badge--warning">${app.commits_behind} commits</span>` :
-                    '<span class="badge badge--success">Up to date</span>';
+                    `<span class="status-text status-text--warning">${app.commits_behind} commits</span>` :
+                    '<span class="status-text status-text--success">Up to date</span>';
 
                 const actions = {{ 'true' if user.permission_level == 'admin' else 'false' }} ? `
                     <button class="btn btn--small btn--primary" onclick="gitPullApp('${key}')">Update</button>
@@ -273,8 +322,8 @@
 
             for (const [key, app] of Object.entries(availableApps)) {
                 const statusBadge = app.installed ?
-                    '<span class="badge badge--success">Installed</span>' :
-                    '<span class="badge badge--info">Available</span>';
+                    '<span class="status-text status-text--success">Installed</span>' :
+                    '<span class="status-text status-text--info">Available</span>';
 
                 const deps = app.dependencies ? app.dependencies.join(', ') : 'None';
 
@@ -412,55 +461,11 @@
                 showNotification('Failed to install app: ' + error.message, 'error');
             });
         });
+
+        // Initialize Lucide icons on page load
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+        });
     </script>
-
-    <!-- Include shared styles and scripts -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') if url_for else '/static/css/styles.css' }}">
-    <script src="{{ url_for('static', filename='js/common.js') if url_for else '/static/js/common.js' }}"></script>
-
-    <style>
-        .tabs {
-            display: flex;
-            border-bottom: 2px solid #ddd;
-            margin-bottom: 20px;
-        }
-
-        .tab {
-            padding: 10px 20px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        .tab:hover {
-            background: #f0f0f0;
-        }
-
-        .tab--active {
-            border-bottom: 3px solid #007bff;
-            font-weight: bold;
-            color: #007bff;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content--active {
-            display: block;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-    </style>
 </body>
 </html>

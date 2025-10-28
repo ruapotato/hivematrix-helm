@@ -4,47 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Helm - HiveMatrix Service Manager</title>
-    <style>
-        .security-banner {
-            background-color: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 16px 0;
-            display: none;
-        }
-        .security-banner.critical {
-            background-color: #f8d7da;
-            border-color: #dc3545;
-        }
-        .security-banner h3 {
-            margin: 0 0 8px 0;
-            color: #856404;
-        }
-        .security-banner.critical h3 {
-            color: #721c24;
-        }
-    </style>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h1 class="card__title">HiveMatrix Helm</h1>
-                <p>Service Manager & Monitoring Dashboard</p>
             </div>
             <div class="card__body">
-                <p>Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
+                <p class="u-m-0">Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
             </div>
         </div>
 
         <!-- Security Warning Banner -->
-        <div id="security-banner" class="security-banner">
-            <h3 id="security-banner-title">⚠️ Security Alert</h3>
+        <div id="security-banner" class="security-banner u-mb-3">
+            <h3 id="security-banner-title" class="security-banner__title">⚠️ Security Alert</h3>
             <p id="security-banner-message"></p>
             <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--danger">
-                <span class="btn__label">🔒 View Security Audit</span>
+                <span class="btn__label">
+                    <i data-lucide="lock" class="btn__icon"></i>
+                    View Security Audit
+                </span>
             </a>
+        </div>
+
+        <div class="card u-mb-3">
+            <div class="card__header">
+                <h2 class="card__title">Quick Links</h2>
+            </div>
+            <div class="card__body">
+                <div class="btn-group">
+                    <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--primary">
+                        <span class="btn__label">
+                            <i data-lucide="lock" class="btn__icon"></i>
+                            Security Audit
+                        </span>
+                    </a>
+                    <a href="#" onclick="navigateTo('/logs'); return false;" class="btn btn--primary">
+                        <span class="btn__label">
+                            <i data-lucide="scroll-text" class="btn__icon"></i>
+                            View All Logs
+                        </span>
+                    </a>
+                    <a href="#" onclick="navigateTo('/metrics'); return false;" class="btn btn--primary">
+                        <span class="btn__label">
+                            <i data-lucide="bar-chart" class="btn__icon"></i>
+                            View Metrics
+                        </span>
+                    </a>
+                    {% if user.permission_level == 'admin' %}
+                    <a href="#" onclick="navigateTo('/modules'); return false;" class="btn btn--primary">
+                        <span class="btn__label">
+                            <i data-lucide="package" class="btn__icon"></i>
+                            Manage Modules
+                        </span>
+                    </a>
+                    <a href="#" onclick="navigateTo('/users'); return false;" class="btn btn--primary">
+                        <span class="btn__label">
+                            <i data-lucide="user" class="btn__icon"></i>
+                            Manage Users
+                        </span>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
         </div>
 
         <div class="card">
@@ -73,31 +97,43 @@
                                 <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;">{{ service_name }}</a>
                             </td>
                             <td>
-                                <span class="badge status-badge badge--{{ 'success' if status.status == 'running' else 'danger' }}">
+                                <span class="status-text status-text--{{ 'success' if status.status == 'running' else 'danger' }}">
                                     {{ status.status }}
                                 </span>
                             </td>
                             <td>
-                                <span class="badge health-badge badge--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
+                                <span class="status-text status-text--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
                                     {{ status.health }}
                                 </span>
                             </td>
                             <td>{{ status.configured_port or 'N/A' }}</td>
                             <td class="pid-cell">{{ status.pid or '-' }}</td>
-                            <td class="cpu-cell">{{ "%.1f"|format(status.cpu_percent) if status.cpu_percent else '-' }}</td>
-                            <td class="mem-cell">{{ "%.1f"|format(status.memory_mb) if status.memory_mb else '-' }}</td>
+                            <td class="cpu-cell">
+                                {% if status.cpu_percent is not none %}
+                                    {{ "%.1f"|format(status.cpu_percent) }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td class="mem-cell">
+                                {% if status.memory_mb is not none %}
+                                    {{ "%.1f"|format(status.memory_mb) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>
                                 {% set stats = log_stats.get(service_name, {}) %}
                                 {% if stats %}
                                     <span class="log-stats">
                                         {% if stats.get('ERROR', 0) > 0 %}
-                                            <span class="badge badge--danger">E: {{ stats.get('ERROR', 0) }}</span>
+                                            <span class="status-text status-text--danger">E: {{ stats.get('ERROR', 0) }}</span>
                                         {% endif %}
                                         {% if stats.get('WARNING', 0) > 0 %}
-                                            <span class="badge badge--warning">W: {{ stats.get('WARNING', 0) }}</span>
+                                            <span class="status-text status-text--warning">W: {{ stats.get('WARNING', 0) }}</span>
                                         {% endif %}
                                         {% if stats.get('INFO', 0) > 0 %}
-                                            <span class="badge badge--info">I: {{ stats.get('INFO', 0) }}</span>
+                                            <span class="status-text status-text--info">I: {{ stats.get('INFO', 0) }}</span>
                                         {% endif %}
                                     </span>
                                 {% else %}
@@ -106,18 +142,20 @@
                             </td>
                             <td class="actions-cell" data-is-admin="{{ 'true' if user.permission_level == 'admin' else 'false' }}">
                                 {% if user.permission_level == 'admin' %}
-                                    {% if status.status == 'running' %}
-                                        <button class="btn btn--small btn--danger" onclick="controlService('{{ service_name }}', 'stop')">
-                                            <span class="btn__label">Stop</span>
-                                        </button>
-                                        <button class="btn btn--small" onclick="controlService('{{ service_name }}', 'restart')">
-                                            <span class="btn__label">Restart</span>
-                                        </button>
-                                    {% else %}
-                                        <button class="btn btn--small btn--primary" onclick="controlService('{{ service_name }}', 'start')">
-                                            <span class="btn__label">Start</span>
-                                        </button>
-                                    {% endif %}
+                                    <div class="action-icons">
+                                        {% if status.status == 'running' %}
+                                            <span class="icon-wrapper" data-tooltip="Stop" onclick="controlService('{{ service_name }}', 'stop')">
+                                                <i data-lucide="stop-circle" class="action-icon action-icon--danger"></i>
+                                            </span>
+                                            <span class="icon-wrapper" data-tooltip="Restart" onclick="controlService('{{ service_name }}', 'restart')">
+                                                <i data-lucide="refresh-cw" class="action-icon action-icon--neutral"></i>
+                                            </span>
+                                        {% else %}
+                                            <span class="icon-wrapper" data-tooltip="Start" onclick="controlService('{{ service_name }}', 'start')">
+                                                <i data-lucide="play-circle" class="action-icon action-icon--success"></i>
+                                            </span>
+                                        {% endif %}
+                                    </div>
                                 {% else %}
                                     <em>Admin only</em>
                                 {% endif %}
@@ -126,31 +164,6 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card__header">
-                <h2 class="card__title">Quick Links</h2>
-            </div>
-            <div class="card__body">
-                <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--primary" style="background-color: #28a745;">
-                    <span class="btn__label">🔒 Security Audit</span>
-                </a>
-                <a href="#" onclick="navigateTo('/logs'); return false;" class="btn btn--primary">
-                    <span class="btn__label">View All Logs</span>
-                </a>
-                <a href="#" onclick="navigateTo('/metrics'); return false;" class="btn btn--primary">
-                    <span class="btn__label">View Metrics</span>
-                </a>
-                {% if user.permission_level == 'admin' %}
-                <a href="#" onclick="navigateTo('/modules'); return false;" class="btn btn--primary">
-                    <span class="btn__label">📦 Manage Modules</span>
-                </a>
-                <a href="#" onclick="navigateTo('/users'); return false;" class="btn btn--primary">
-                    <span class="btn__label">👥 Manage Users</span>
-                </a>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -215,16 +228,15 @@
                     const message = document.getElementById('security-banner-message');
 
                     if (data.exposed_services && data.exposed_services.length > 0) {
-                        banner.classList.add('critical');
-                        banner.style.display = 'block';
+                        banner.classList.add('security-banner--critical', 'is-visible');
                         title.textContent = '🔴 CRITICAL SECURITY ALERT';
                         message.textContent = `${data.exposed_services.length} service(s) are exposed to the network and can be accessed externally. This is a security risk!`;
                     } else if (data.firewall_required && data.firewall_required.length > 0) {
-                        banner.style.display = 'block';
+                        banner.classList.add('is-visible');
                         title.textContent = '⚠️ Firewall Protection Recommended';
                         message.textContent = `${data.firewall_required.length} service(s) should be protected by firewall. This is normal for Java apps like Keycloak. Click to apply firewall rules.`;
                     } else if (data.severity === 'low') {
-                        banner.style.display = 'block';
+                        banner.classList.add('is-visible');
                         title.textContent = '⚠️ Security Warning';
                         message.textContent = 'Minor security concerns detected. Review the security audit for details.';
                     }
@@ -236,7 +248,11 @@
         }
 
         // Run security check on page load
-        window.addEventListener('load', checkSecurityStatus);
+        window.addEventListener('load', () => {
+            checkSecurityStatus();
+            // Initialize Lucide icons
+            lucide.createIcons();
+        });
 
         // Update dashboard data without page reload
         function updateDashboard() {
@@ -261,22 +277,22 @@
                 const row = tbody.querySelector(`tr[data-service="${serviceName}"]`);
                 if (!row) return; // Service not in table yet, would need full reload
 
-                // Update status badge
-                const statusBadge = row.querySelector('.status-badge');
-                if (statusBadge) {
-                    statusBadge.className = `badge status-badge badge--${status.status === 'running' ? 'success' : 'danger'}`;
-                    statusBadge.textContent = status.status;
+                // Update status text
+                const statusText = row.querySelectorAll('.status-text')[0];
+                if (statusText) {
+                    statusText.className = `status-text status-text--${status.status === 'running' ? 'success' : 'danger'}`;
+                    statusText.textContent = status.status;
                 }
 
-                // Update health badge
-                const healthBadge = row.querySelector('.health-badge');
-                if (healthBadge) {
-                    let badgeClass = 'badge health-badge';
-                    if (status.health === 'healthy') badgeClass += ' badge--success';
-                    else if (status.health === 'degraded') badgeClass += ' badge--warning';
-                    else badgeClass += ' badge--danger';
-                    healthBadge.className = badgeClass;
-                    healthBadge.textContent = status.health;
+                // Update health text
+                const healthText = row.querySelectorAll('.status-text')[1];
+                if (healthText) {
+                    let statusClass = 'status-text';
+                    if (status.health === 'healthy') statusClass += ' status-text--success';
+                    else if (status.health === 'degraded') statusClass += ' status-text--warning';
+                    else statusClass += ' status-text--danger';
+                    healthText.className = statusClass;
+                    healthText.textContent = status.health;
                 }
 
                 // Update PID
@@ -285,11 +301,11 @@
 
                 // Update CPU
                 const cpuCell = row.querySelector('.cpu-cell');
-                if (cpuCell) cpuCell.textContent = status.cpu_percent ? status.cpu_percent.toFixed(1) : '-';
+                if (cpuCell) cpuCell.textContent = status.cpu_percent != null ? status.cpu_percent.toFixed(1) + '%' : '-';
 
                 // Update Memory
                 const memCell = row.querySelector('.mem-cell');
-                if (memCell) memCell.textContent = status.memory_mb ? status.memory_mb.toFixed(1) : '-';
+                if (memCell) memCell.textContent = status.memory_mb != null ? status.memory_mb.toFixed(1) : '-';
 
                 // Update log stats
                 const logStatsCell = row.querySelector('.log-stats');
@@ -297,36 +313,42 @@
                     const stats = logStats[serviceName];
                     let html = '';
                     if (stats.ERROR && stats.ERROR > 0) {
-                        html += `<span class="badge badge--danger">E: ${stats.ERROR}</span> `;
+                        html += `<span class="status-text status-text--danger">E: ${stats.ERROR}</span> `;
                     }
                     if (stats.WARNING && stats.WARNING > 0) {
-                        html += `<span class="badge badge--warning">W: ${stats.WARNING}</span> `;
+                        html += `<span class="status-text status-text--warning">W: ${stats.WARNING}</span> `;
                     }
                     if (stats.INFO && stats.INFO > 0) {
-                        html += `<span class="badge badge--info">I: ${stats.INFO}</span>`;
+                        html += `<span class="status-text status-text--info">I: ${stats.INFO}</span>`;
                     }
                     logStatsCell.innerHTML = html || '-';
                 }
 
-                // Update action buttons based on status
+                // Update action icons based on status
                 const actionsCell = row.querySelector('.actions-cell');
                 if (actionsCell && actionsCell.getAttribute('data-is-admin') === 'true') {
                     if (status.status === 'running') {
                         actionsCell.innerHTML = `
-                            <button class="btn btn--small btn--danger" onclick="controlService('${serviceName}', 'stop')">
-                                <span class="btn__label">Stop</span>
-                            </button>
-                            <button class="btn btn--small" onclick="controlService('${serviceName}', 'restart')">
-                                <span class="btn__label">Restart</span>
-                            </button>
+                            <div class="action-icons">
+                                <span class="icon-wrapper" data-tooltip="Stop" onclick="controlService('${serviceName}', 'stop')">
+                                    <i data-lucide="stop-circle" class="action-icon action-icon--danger"></i>
+                                </span>
+                                <span class="icon-wrapper" data-tooltip="Restart" onclick="controlService('${serviceName}', 'restart')">
+                                    <i data-lucide="refresh-cw" class="action-icon action-icon--neutral"></i>
+                                </span>
+                            </div>
                         `;
                     } else {
                         actionsCell.innerHTML = `
-                            <button class="btn btn--small btn--primary" onclick="controlService('${serviceName}', 'start')">
-                                <span class="btn__label">Start</span>
-                            </button>
+                            <div class="action-icons">
+                                <span class="icon-wrapper" data-tooltip="Start" onclick="controlService('${serviceName}', 'start')">
+                                    <i data-lucide="play-circle" class="action-icon action-icon--success"></i>
+                                </span>
+                            </div>
                         `;
                     }
+                    // Re-initialize Lucide icons after updating HTML
+                    lucide.createIcons();
                 }
             });
         }

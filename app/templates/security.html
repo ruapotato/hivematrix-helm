@@ -4,144 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Security Audit - HiveMatrix Helm</title>
-    <style>
-        .severity-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-        .severity-none { background-color: #28a745; color: white; }
-        .severity-low { background-color: #ffc107; color: black; }
-        .severity-medium { background-color: #fd7e14; color: white; }
-        .severity-high { background-color: #dc3545; color: white; }
-        .severity-critical { background-color: #6f42c1; color: white; }
-
-        .security-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-        }
-        .icon-secure { color: #28a745; }
-        .icon-warning { color: #ffc107; }
-        .icon-danger { color: #dc3545; }
-
-        .service-list {
-            list-style: none;
-            padding: 0;
-            margin: 16px 0;
-        }
-        .service-list li {
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 4px;
-            border-left: 4px solid #ddd;
-        }
-        .service-list li.exposed {
-            background-color: #ffe6e6;
-            border-left-color: #dc3545;
-        }
-        .service-list li.secure {
-            background-color: #e6ffe6;
-            border-left-color: #28a745;
-        }
-        .service-list li.warning {
-            background-color: #fff9e6;
-            border-left-color: #ffc107;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-        }
-
-        .alert-box {
-            padding: 16px;
-            margin: 16px 0;
-            border-radius: 8px;
-            border-left: 4px solid;
-        }
-        .alert-danger {
-            background-color: #fff5f5;
-            border-color: #dc3545;
-            color: #721c24;
-        }
-        .alert-warning {
-            background-color: #fffbf0;
-            border-color: #ffc107;
-            color: #856404;
-        }
-        .alert-success {
-            background-color: #f0fff4;
-            border-color: #28a745;
-            color: #155724;
-        }
-
-        .code-box {
-            background-color: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 12px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .btn-group {
-            margin: 16px 0;
-        }
-        .btn-group .btn {
-            margin-right: 8px;
-        }
-    </style>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
-                <h1 class="card__title">🔒 Security Audit</h1>
-                <p>Port Binding & Network Security Analysis</p>
-            </div>
-            <div class="card__body">
-                <p>Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
-                <button class="btn btn--primary" onclick="runAudit()">
-                    <span class="btn__label">🔄 Run Security Audit</span>
-                </button>
-                <button class="btn btn--secondary" onclick="navigateTo('/')">
-                    <span class="btn__label">← Back to Dashboard</span>
-                </button>
+                <h1 class="card__title">Security Audit</h1>
+                <div class="card__header-actions">
+                    <button class="btn btn--primary" onclick="runAudit()">
+                        <span class="btn__label">
+                            <i data-lucide="refresh-cw" class="btn__icon"></i>
+                            Run Audit
+                        </span>
+                    </button>
+                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                        <span class="btn__label">
+                            <i data-lucide="arrow-left" class="btn__icon"></i>
+                            Back to Dashboard
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- Loading State -->
-        <div id="loading" class="loading" style="display: none;">
+        <div id="loading" class="loading" class="is-hidden">
             <p>Running security audit...</p>
         </div>
 
         <!-- Audit Results -->
-        <div id="audit-results" style="display: none;">
+        <div id="audit-results" class="is-hidden">
             <!-- Summary Card -->
-            <div class="card">
+            <div class="card u-mb-3">
                 <div class="card__header">
                     <h2 class="card__title">Security Status</h2>
                 </div>
                 <div class="card__body">
-                    <div id="summary-content" style="text-align: center;">
+                    <div id="summary-content" class="u-text-center">
                         <!-- Populated by JavaScript -->
                     </div>
-                    <div id="firewall-status" style="margin-top: 20px; padding: 16px; border-radius: 8px; background-color: #f8f9fa;">
+                    <div id="firewall-status" class="u-mt-3">
                         <!-- Populated by JavaScript -->
                     </div>
                 </div>
             </div>
 
             <!-- Exposed Services (if any) -->
-            <div id="exposed-section" style="display: none;">
-                <div class="card">
-                    <div class="card__header" style="background-color: #dc3545; color: white;">
-                        <h2 class="card__title">🔴 EXPOSED SERVICES (HIGH RISK)</h2>
+            <div id="exposed-section" class="is-hidden u-mb-3">
+                <div class="card u-mb-3">
+                    <div class="card__header card__header--danger">
+                        <h2 class="card__title">EXPOSED SERVICES (HIGH RISK)</h2>
                     </div>
                     <div class="card__body">
                         <div class="alert-box alert-danger">
@@ -151,7 +64,7 @@
                         <ul id="exposed-list" class="service-list">
                             <!-- Populated by JavaScript -->
                         </ul>
-                        <div style="margin-top: 20px;">
+                        <div class="u-mt-2">
                             <h3>Immediate Actions Required:</h3>
                             <ol>
                                 <li>Update service bindings to localhost (127.0.0.1)</li>
@@ -164,10 +77,10 @@
             </div>
 
             <!-- Firewall Protected Services -->
-            <div id="firewall-protected-section" style="display: none;">
-                <div class="card">
-                    <div class="card__header" style="background-color: #28a745; color: white;">
-                        <h2 class="card__title">🛡️ FIREWALL PROTECTED</h2>
+            <div id="firewall-protected-section" class="is-hidden">
+                <div class="card u-mb-3">
+                    <div class="card__header card__header--success">
+                        <h2 class="card__title">FIREWALL PROTECTED</h2>
                     </div>
                     <div class="card__body">
                         <div class="alert-box alert-success">
@@ -182,10 +95,10 @@
             </div>
 
             <!-- Firewall Required Services -->
-            <div id="firewall-section-warn" style="display: none;">
-                <div class="card">
-                    <div class="card__header" style="background-color: #fd7e14; color: white;">
-                        <h2 class="card__title">⚠️ FIREWALL PROTECTION REQUIRED</h2>
+            <div id="firewall-section-warn" class="is-hidden">
+                <div class="card u-mb-3">
+                    <div class="card__header card__header--warning">
+                        <h2 class="card__title">FIREWALL PROTECTION REQUIRED</h2>
                     </div>
                     <div class="card__body">
                         <div class="alert-box alert-warning">
@@ -195,7 +108,7 @@
                         <ul id="firewall-required-list" class="service-list">
                             <!-- Populated by JavaScript -->
                         </ul>
-                        <div style="margin-top: 20px;">
+                        <div class="u-mt-2">
                             <h3>Required Actions:</h3>
                             <ol>
                                 <li>Download and apply firewall script (see below)</li>
@@ -208,10 +121,10 @@
             </div>
 
             <!-- Secure Services -->
-            <div id="secure-section" style="display: none;">
-                <div class="card">
-                    <div class="card__header" style="background-color: #28a745; color: white;">
-                        <h2 class="card__title">✓ SECURE SERVICES</h2>
+            <div id="secure-section" class="is-hidden">
+                <div class="card u-mb-3">
+                    <div class="card__header card__header--success">
+                        <h2 class="card__title">SECURE SERVICES</h2>
                     </div>
                     <div class="card__body">
                         <p>These services are properly configured to listen only on localhost:</p>
@@ -223,25 +136,31 @@
             </div>
 
             <!-- Firewall Configuration -->
-            <div id="firewall-section" class="card">
+            <div id="firewall-section" class="card u-mb-3">
                 <div class="card__header">
-                    <h2 class="card__title">🛡️ Firewall Configuration</h2>
+                    <h2 class="card__title">Firewall Configuration</h2>
                 </div>
                 <div class="card__body">
                     <p>Apply firewall rules to protect internal services from external access.</p>
 
                     <div class="btn-group">
                         <button class="btn btn--primary" onclick="generateFirewallScript('ufw')">
-                            <span class="btn__label">📥 Download UFW Script (Ubuntu/Debian)</span>
+                            <span class="btn__label">
+                                <i data-lucide="download" class="btn__icon"></i>
+                                Download UFW Script (Ubuntu/Debian)
+                            </span>
                         </button>
                         <button class="btn btn--primary" onclick="generateFirewallScript('iptables')">
-                            <span class="btn__label">📥 Download iptables Script</span>
+                            <span class="btn__label">
+                                <i data-lucide="download" class="btn__icon"></i>
+                                Download iptables Script
+                            </span>
                         </button>
                     </div>
 
                     <div class="alert-box alert-warning">
                         <strong>⚠️ Important:</strong>
-                        <ul style="margin: 8px 0; padding-left: 20px;">
+                        <ul class="u-my-1 u-pl-3">
                             <li>Review the firewall script before applying</li>
                             <li>Ensure you have SSH access (port 22 is allowed)</li>
                             <li>Run the script with sudo: <code>sudo bash secure_firewall.sh</code></li>
@@ -278,11 +197,11 @@ sudo ufw status
             <!-- Recommendations -->
             <div class="card">
                 <div class="card__header">
-                    <h2 class="card__title">📋 Security Recommendations</h2>
+                    <h2 class="card__title">Security Recommendations</h2>
                 </div>
                 <div class="card__body">
                     <h3>Production Deployment Checklist:</h3>
-                    <ul style="line-height: 2;">
+                    <ul class="u-lh-2">
                         <li>□ All services bound to localhost (except Nexus on 443)</li>
                         <li>□ Firewall configured and enabled</li>
                         <li>□ Change default Keycloak admin password</li>
@@ -371,27 +290,26 @@ sudo ufw status
 
             // Display firewall status
             const firewallStatus = document.getElementById('firewall-status');
+            firewallStatus.className = '';
             if (findings.firewall_status && findings.firewall_status.active) {
                 const protectedPorts = findings.firewall_status.protected_ports.sort((a, b) => a - b).join(', ');
+                firewallStatus.className = 'alert-box alert-success';
                 firewallStatus.innerHTML = `
-                    <h4 style="margin: 0 0 8px 0;">🛡️ Firewall Status</h4>
-                    <p style="margin: 0;">
-                        <strong>Status:</strong> ✓ Active (${findings.firewall_status.type.toUpperCase()})<br>
+                    <h4>Firewall Status</h4>
+                    <p>
+                        <strong>Status:</strong> Active (${findings.firewall_status.type.toUpperCase()})<br>
                         <strong>Protected Ports:</strong> ${protectedPorts}
                     </p>
                 `;
-                firewallStatus.style.backgroundColor = '#d4edda';
-                firewallStatus.style.border = '1px solid #c3e6cb';
             } else {
+                firewallStatus.className = 'alert-box alert-warning';
                 firewallStatus.innerHTML = `
-                    <h4 style="margin: 0 0 8px 0;">⚠️ Firewall Status</h4>
-                    <p style="margin: 0; color: #856404;">
-                        <strong>Status:</strong> ✗ Not detected or inactive<br>
+                    <h4>Firewall Status</h4>
+                    <p>
+                        <strong>Status:</strong> Not detected or inactive<br>
                         Firewall protection is recommended for production deployments.
                     </p>
                 `;
-                firewallStatus.style.backgroundColor = '#fff3cd';
-                firewallStatus.style.border = '1px solid #ffc107';
             }
 
             // Display exposed services
@@ -401,7 +319,7 @@ sudo ufw status
                 exposedList.innerHTML = findings.exposed_services.map(svc => `
                     <li class="exposed">
                         <strong>${svc.service.toUpperCase()}</strong> - Port ${svc.port}<br>
-                        <span style="color: #dc3545;">Binding: ${svc.binding}</span><br>
+                        <span class="u-text-danger">Binding: ${svc.binding}</span><br>
                         <small>${svc.issue}</small>
                     </li>
                 `).join('');
@@ -416,7 +334,7 @@ sudo ufw status
                 protectedList.innerHTML = findings.firewall_protected.map(svc => `
                     <li class="secure">
                         <strong>${svc.service.toUpperCase()}</strong> - Port ${svc.port}<br>
-                        <span style="color: #28a745;">🛡️ Binding: ${svc.binding}</span><br>
+                        <span class="u-text-success">🛡️ Binding: ${svc.binding}</span><br>
                         <small>${svc.info}</small>
                     </li>
                 `).join('');
@@ -431,7 +349,7 @@ sudo ufw status
                 firewallList.innerHTML = findings.firewall_required.map(svc => `
                     <li class="warning">
                         <strong>${svc.service.toUpperCase()}</strong> - Port ${svc.port}<br>
-                        <span style="color: #fd7e14;">⚠ Binding: ${svc.binding}</span><br>
+                        <span class="u-text-warning">⚠ Binding: ${svc.binding}</span><br>
                         <small>${svc.issue}</small>
                     </li>
                 `).join('');
@@ -446,7 +364,7 @@ sudo ufw status
                 secureList.innerHTML = findings.secure_services.map(svc => `
                     <li class="secure">
                         <strong>${svc.service}</strong> - Port ${svc.port}<br>
-                        <span style="color: #28a745;">✓ Binding: ${svc.binding}</span><br>
+                        <span class="u-text-success">✓ Binding: ${svc.binding}</span><br>
                         <small>${svc.status}</small>
                     </li>
                 `).join('');
@@ -484,6 +402,7 @@ sudo ufw status
 
         // Auto-run audit on page load
         window.addEventListener('load', () => {
+            lucide.createIcons();
             runAudit();
         });
     </script>

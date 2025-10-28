@@ -4,71 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Module Management - Helm</title>
-    <style>
-        .log-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        .log-modal.active {
-            display: flex;
-        }
-        .log-modal__content {
-            background: #1a1a1a;
-            border-radius: 8px;
-            max-width: 800px;
-            max-height: 80vh;
-            width: 90%;
-            display: flex;
-            flex-direction: column;
-        }
-        .log-modal__header {
-            padding: 1.5rem;
-            border-bottom: 1px solid #333;
-        }
-        .log-modal__title {
-            color: #fff;
-            margin: 0;
-            font-size: 1.25rem;
-        }
-        .log-modal__body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            line-height: 1.5;
-        }
-        .log-line {
-            color: #ccc;
-            padding: 0.25rem 0;
-        }
-        .log-line.error {
-            color: #ff6b6b;
-        }
-        .log-line.success {
-            color: #51cf66;
-        }
-        .log-line.warning {
-            color: #ffd43b;
-        }
-        .log-modal__footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #333;
-            display: flex;
-            justify-content: flex-end;
-        }
-    </style>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <!-- Log Modal -->
     <div class="log-modal" id="logModal">
         <div class="log-modal__content">
             <div class="log-modal__header">
@@ -79,32 +17,40 @@
             </div>
             <div class="log-modal__footer">
                 <button class="btn btn--primary" onclick="closeLogModal()">
-                    <span class="btn__label">Close & Refresh</span>
+                    <span class="btn__label">
+                        <i data-lucide="x" class="btn__icon"></i>
+                        Close & Refresh
+                    </span>
                 </button>
             </div>
         </div>
     </div>
 
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h1 class="card__title">Module Management</h1>
-                <p>Install, update, and manage HiveMatrix modules</p>
+                <div class="card__header-actions">
+                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                        <span class="btn__label">
+                            <i data-lucide="arrow-left" class="btn__icon"></i>
+                            Back to Dashboard
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Available Modules -->
         {% if available %}
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
-                <h2 class="card__title">📦 Available Modules</h2>
-                <p>Official HiveMatrix modules - Use CLI to install</p>
+                <h2 class="card__title">Available Modules</h2>
             </div>
             <div class="card__body">
-                <div style="background: #f5f5f5; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
-                    <p><strong>Installation Instructions:</strong></p>
+                <div class="alert-box alert-info u-mb-2">
+                    <h4>Installation Instructions</h4>
                     <p>Modules must be installed using the command-line tool for proper database setup:</p>
-                    <pre style="background: #fff; padding: 0.5rem; margin-top: 0.5rem;">cd hivematrix-helm
+                    <pre class="code-block u-mt-1">cd hivematrix-helm
 sudo ./install &lt;module_name&gt;</pre>
                 </div>
                 <table>
@@ -123,7 +69,7 @@ sudo ./install &lt;module_name&gt;</pre>
                             <td>{{ module.description }}</td>
                             <td>{{ module.port }}</td>
                             <td>
-                                <code style="background: #f0f0f0; padding: 0.25rem 0.5rem; border-radius: 3px;">
+                                <code class="code-block--inline">
                                     ./install {{ module.id }}
                                 </code>
                             </td>
@@ -135,11 +81,9 @@ sudo ./install &lt;module_name&gt;</pre>
         </div>
         {% endif %}
 
-        <!-- Installed Modules -->
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
-                <h2 class="card__title">✓ Installed Modules</h2>
-                <p>Currently installed modules</p>
+                <h2 class="card__title">Installed Modules</h2>
             </div>
             <div class="card__body">
                 {% if installed %}
@@ -159,22 +103,28 @@ sudo ./install &lt;module_name&gt;</pre>
                             <td>{{ module.description }}</td>
                             <td>
                                 {% if module.is_official %}
-                                    <span class="badge badge--success">Official</span>
+                                    <span class="status-text status-text--success">Official</span>
                                 {% else %}
-                                    <span class="badge badge--info">Custom</span>
+                                    <span class="status-text status-text--info">Custom</span>
                                 {% endif %}
                                 {% if module.is_git %}
-                                    <span class="badge badge--info">Git</span>
+                                    <span class="status-text status-text--info">Git</span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if module.is_git %}
                                 <button class="btn btn--small" onclick="updateModule('{{ module.id }}')">
-                                    <span class="btn__label">Update</span>
+                                    <span class="btn__label">
+                                        <i data-lucide="refresh-cw" class="btn__icon"></i>
+                                        Update
+                                    </span>
                                 </button>
                                 {% endif %}
                                 <button class="btn btn--small btn--danger" onclick="removeModule('{{ module.id }}')">
-                                    <span class="btn__label">Remove</span>
+                                    <span class="btn__label">
+                                        <i data-lucide="trash-2" class="btn__icon"></i>
+                                        Uninstall
+                                    </span>
                                 </button>
                             </td>
                         </tr>
@@ -187,35 +137,27 @@ sudo ./install &lt;module_name&gt;</pre>
             </div>
         </div>
 
-        <!-- Install Custom Module -->
         <div class="card">
             <div class="card__header">
-                <h2 class="card__title">🔧 Install Custom Module</h2>
-                <p>Install a module from a Git URL</p>
+                <h2 class="card__title">Install Custom Module</h2>
             </div>
             <div class="card__body">
                 <form id="customModuleForm" onsubmit="installCustomModule(event)">
-                    <div style="margin-bottom: 1rem;">
+                    <div class="u-mb-2">
                         <label for="gitUrl">Git Repository URL:</label>
-                        <input type="text" id="gitUrl" name="gitUrl" placeholder="https://github.com/user/hivematrix-mymodule.git" required style="width: 100%; padding: 0.5rem; margin-top: 0.5rem;">
+                        <input type="text" id="gitUrl" name="gitUrl" placeholder="https://github.com/user/hivematrix-mymodule.git" required class="form-group__input u-mt-1">
                     </div>
-                    <div style="margin-bottom: 1rem;">
+                    <div class="u-mb-2">
                         <label for="port">Port Number:</label>
-                        <input type="number" id="port" name="port" placeholder="5050" min="5000" max="9999" required style="width: 200px; padding: 0.5rem; margin-top: 0.5rem;">
+                        <input type="number" id="port" name="port" placeholder="5050" min="5000" max="9999" required class="u-w-200 form-group__input u-mt-1">
                     </div>
                     <button type="submit" class="btn btn--primary">
-                        <span class="btn__label">Install Custom Module</span>
+                        <span class="btn__label">
+                            <i data-lucide="download" class="btn__icon"></i>
+                            Install Custom Module
+                        </span>
                     </button>
                 </form>
-            </div>
-        </div>
-
-        <!-- Back to Dashboard -->
-        <div class="card">
-            <div class="card__body">
-                <a href="#" onclick="navigateTo('/'); return false;" class="btn">
-                    <span class="btn__label">← Back to Dashboard</span>
-                </a>
             </div>
         </div>
     </div>
@@ -261,6 +203,9 @@ sudo ./install &lt;module_name&gt;</pre>
             // Scroll to bottom
             modalBody.scrollTop = modalBody.scrollHeight;
             modal.classList.add('active');
+
+            // Re-initialize icons in modal
+            lucide.createIcons();
         }
 
         function closeLogModal() {
@@ -412,6 +357,11 @@ sudo ./install &lt;module_name&gt;</pre>
                 submitBtn.disabled = false;
             });
         }
+
+        // Initialize Lucide icons on page load
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+        });
     </script>
 </body>
 </html>

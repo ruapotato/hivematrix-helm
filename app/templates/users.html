@@ -4,76 +4,86 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - HiveMatrix Helm</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
     <div class="container">
-        <div class="card">
+        <div class="card u-mb-3">
             <div class="card__header">
                 <h1 class="card__title">User Management</h1>
-                <p>Manage Keycloak users and groups</p>
-            </div>
-            <div class="card__body">
-                <div style="margin-bottom: 1rem;">
+                <div class="card__header-actions">
                     <button class="btn btn--primary" onclick="showCreateUserModal()">
-                        <span class="btn__label">➕ Create New User</span>
+                        <span class="btn__label">
+                            <i data-lucide="user-plus" class="btn__icon"></i>
+                            Create New User
+                        </span>
+                    </button>
+                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                        <span class="btn__label">
+                            <i data-lucide="arrow-left" class="btn__icon"></i>
+                            Back to Dashboard
+                        </span>
                     </button>
                 </div>
+            </div>
+        </div>
 
-                <div id="user-list">
-                    <p>Loading users...</p>
-                </div>
+        <div id="user-list" class="card">
+            <div class="card__body">
+                <p>Loading users...</p>
             </div>
         </div>
     </div>
 
-    <!-- Create User Modal -->
-    <div id="createUserModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create New User</h2>
-                <span class="modal-close" onclick="hideCreateUserModal()">&times;</span>
+    <div id="createUserModal" class="modal">
+        <div class="modal__dialog">
+            <div class="modal__header">
+                <h2 class="modal__title">Create New User</h2>
+                <button class="modal__close" onclick="hideCreateUserModal()">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
-            <div class="modal-body">
+            <div class="modal__body">
                 <form id="createUserForm" onsubmit="event.preventDefault(); createUser(); return false;">
                     <div class="form-group">
-                        <label>Username *</label>
-                        <input type="text" id="username" required>
+                        <label class="form-group__label">Username *</label>
+                        <input type="text" id="username" class="form-group__input" required>
                     </div>
                     <div class="form-group">
-                        <label>Email *</label>
-                        <input type="email" id="email" required>
+                        <label class="form-group__label">Email *</label>
+                        <input type="email" id="email" class="form-group__input" required>
                     </div>
                     <div class="form-group">
-                        <label>First Name</label>
-                        <input type="text" id="firstName">
+                        <label class="form-group__label">First Name</label>
+                        <input type="text" id="firstName" class="form-group__input">
                     </div>
                     <div class="form-group">
-                        <label>Last Name</label>
-                        <input type="text" id="lastName">
+                        <label class="form-group__label">Last Name</label>
+                        <input type="text" id="lastName" class="form-group__input">
                     </div>
                     <div class="form-group">
-                        <label>Password *</label>
-                        <input type="password" id="password" required>
+                        <label class="form-group__label">Password *</label>
+                        <input type="password" id="password" class="form-group__input" required>
                     </div>
                     <div class="form-group">
-                        <label>Groups</label>
-                        <div style="margin-top: 0.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" id="group-admins" value="admins">
-                                Admin
-                            </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" id="group-technicians" value="technicians">
-                                Technician
-                            </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" id="group-billing" value="billing">
-                                Billing
-                            </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
-                                <input type="checkbox" id="group-client" value="client">
-                                Client
-                            </label>
+                        <label class="form-group__label">Groups</label>
+                        <div class="u-mt-1">
+                            <div class="form-group__checkbox-wrapper">
+                                <input type="checkbox" id="group-admins" class="form-group__checkbox" value="admins">
+                                <label class="form-group__checkbox-label" for="group-admins">Admin</label>
+                            </div>
+                            <div class="form-group__checkbox-wrapper">
+                                <input type="checkbox" id="group-technicians" class="form-group__checkbox" value="technicians">
+                                <label class="form-group__checkbox-label" for="group-technicians">Technician</label>
+                            </div>
+                            <div class="form-group__checkbox-wrapper">
+                                <input type="checkbox" id="group-billing" class="form-group__checkbox" value="billing">
+                                <label class="form-group__checkbox-label" for="group-billing">Billing</label>
+                            </div>
+                            <div class="form-group__checkbox-wrapper">
+                                <input type="checkbox" id="group-client" class="form-group__checkbox" value="client">
+                                <label class="form-group__checkbox-label" for="group-client">Client</label>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">
@@ -90,21 +100,32 @@
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button class="btn" onclick="hideCreateUserModal()">Cancel</button>
-                <button class="btn btn--primary" onclick="createUser()">Create User</button>
+            <div class="modal__footer">
+                <button class="btn" onclick="hideCreateUserModal()">
+                    <span class="btn__label">
+                        <i data-lucide="x" class="btn__icon"></i>
+                        Cancel
+                    </span>
+                </button>
+                <button class="btn btn--primary" onclick="createUser()">
+                    <span class="btn__label">
+                        <i data-lucide="user-plus" class="btn__icon"></i>
+                        Create User
+                    </span>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Edit User Modal -->
-    <div id="editUserModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Edit User</h2>
-                <span class="modal-close" onclick="hideEditUserModal()">&times;</span>
+    <div id="editUserModal" class="modal">
+        <div class="modal__dialog">
+            <div class="modal__header">
+                <h2 class="modal__title">Edit User</h2>
+                <button class="modal__close" onclick="hideEditUserModal()">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
-            <div class="modal-body">
+            <div class="modal__body">
                 <form id="editUserForm" onsubmit="event.preventDefault(); updateUser(); return false;">
                     <input type="hidden" id="edit-user-id">
                     <div class="form-group">
@@ -131,20 +152,20 @@
                     </div>
                     <div class="form-group">
                         <label>Groups</label>
-                        <div style="margin-top: 0.5rem;">
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                        <div class="u-mt-1">
+                            <label class="form-group__checkbox-wrapper">
                                 <input type="checkbox" id="edit-group-admins" value="admins">
                                 Admin
                             </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                            <label class="form-group__checkbox-wrapper">
                                 <input type="checkbox" id="edit-group-technicians" value="technicians">
                                 Technician
                             </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                            <label class="form-group__checkbox-wrapper">
                                 <input type="checkbox" id="edit-group-billing" value="billing">
                                 Billing
                             </label>
-                            <label style="display: block; margin-bottom: 0.5rem; font-weight: normal;">
+                            <label class="form-group__checkbox-wrapper">
                                 <input type="checkbox" id="edit-group-client" value="client">
                                 Client
                             </label>
@@ -152,23 +173,44 @@
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn--danger" onclick="deleteUser()">Delete User</button>
-                <button class="btn btn--warning" onclick="showResetPasswordModal()">Reset Password</button>
-                <button class="btn" onclick="hideEditUserModal()">Cancel</button>
-                <button class="btn btn--primary" onclick="updateUser()">Save Changes</button>
+            <div class="modal__footer">
+                <button id="deleteUserBtn" class="btn btn--danger" onclick="deleteUser()">
+                    <span class="btn__label">
+                        <i data-lucide="trash-2" class="btn__icon"></i>
+                        Delete User
+                    </span>
+                </button>
+                <button class="btn" onclick="showResetPasswordModal()">
+                    <span class="btn__label">
+                        <i data-lucide="key" class="btn__icon"></i>
+                        Reset Password
+                    </span>
+                </button>
+                <button class="btn" onclick="hideEditUserModal()">
+                    <span class="btn__label">
+                        <i data-lucide="x" class="btn__icon"></i>
+                        Cancel
+                    </span>
+                </button>
+                <button class="btn btn--primary" onclick="updateUser()">
+                    <span class="btn__label">
+                        <i data-lucide="save" class="btn__icon"></i>
+                        Save Changes
+                    </span>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Reset Password Modal -->
-    <div id="resetPasswordModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Reset Password</h2>
-                <span class="modal-close" onclick="hideResetPasswordModal()">&times;</span>
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal__dialog">
+            <div class="modal__header">
+                <h2 class="modal__title">Reset Password</h2>
+                <button class="modal__close" onclick="hideResetPasswordModal()">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
-            <div class="modal-body">
+            <div class="modal__body">
                 <p>Resetting password for: <strong id="reset-username"></strong></p>
                 <form onsubmit="event.preventDefault(); resetPassword(); return false;">
                     <div class="form-group">
@@ -187,131 +229,23 @@
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button class="btn" onclick="hideResetPasswordModal()">Cancel</button>
-                <button class="btn btn--primary" onclick="resetPassword()">Reset Password</button>
+            <div class="modal__footer">
+                <button class="btn" onclick="hideResetPasswordModal()">
+                    <span class="btn__label">
+                        <i data-lucide="x" class="btn__icon"></i>
+                        Cancel
+                    </span>
+                </button>
+                <button class="btn btn--primary" onclick="resetPassword()">
+                    <span class="btn__label">
+                        <i data-lucide="key" class="btn__icon"></i>
+                        Reset Password
+                    </span>
+                </button>
             </div>
         </div>
     </div>
 
-    <style>
-        .modal {
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-content {
-            background-color: white;
-            border-radius: 8px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h2 {
-            margin: 0;
-        }
-
-        .modal-close {
-            font-size: 2rem;
-            cursor: pointer;
-            color: #999;
-        }
-
-        .modal-close:hover {
-            color: #333;
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .modal-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.5rem;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-
-        .form-group input[type="text"],
-        .form-group input[type="email"],
-        .form-group input[type="password"] {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        .user-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .user-card:hover {
-            background-color: #f5f5f5;
-        }
-
-        .user-card h3 {
-            margin: 0 0 0.5rem 0;
-        }
-
-        .user-card .user-info {
-            font-size: 0.9rem;
-            color: #666;
-        }
-
-        .group-badge {
-            display: inline-block;
-            background-color: #1abc9c;
-            color: white;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            margin-right: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .btn--warning {
-            background-color: #f39c12;
-            color: white;
-        }
-
-        .btn--warning:hover {
-            background-color: #e67e22;
-        }
-    </style>
 
     <script>
         let allGroups = [];
@@ -337,7 +271,7 @@
                     document.getElementById('user-list').innerHTML = '<p>No users found</p>';
                 }
             } catch (error) {
-                document.getElementById('user-list').innerHTML = `<p style="color: red;">Error loading users: ${error.message}</p>`;
+                document.getElementById('user-list').innerHTML = `<p class="u-text-danger">Error loading users: ${error.message}</p>`;
             }
         }
 
@@ -371,21 +305,21 @@
 
                     if (groups.length > 0) {
                         groupsHtml = '<p>Groups: ' + groups.map(g =>
-                            `<span class="badge badge--info">${g.name}</span>`
+                            `<span class="group-badge">${g.name}</span>`
                         ).join(' ') + '</p>';
                     } else {
-                        groupsHtml = '<p>Groups: <span style="color: #999;">None</span></p>';
+                        groupsHtml = '<p>Groups: <span class="u-text-muted">None</span></p>';
                     }
                 } catch (error) {
-                    groupsHtml = '<p>Groups: <span style="color: #999;">Error loading</span></p>';
+                    groupsHtml = '<p>Groups: <span class="u-text-muted">Error loading</span></p>';
                 }
 
                 userCard.innerHTML = `
-                    <h3>${user.username}</h3>
-                    <div class="user-info">
+                    <h3 class="user-card__name">${user.username}</h3>
+                    <div class="user-card__info">
                         <p>Email: ${user.email || 'N/A'}</p>
                         <p>Name: ${user.firstName || ''} ${user.lastName || ''}</p>
-                        <p>Status: <span class="badge badge--${user.enabled ? 'success' : 'danger'}">${user.enabled ? 'Enabled' : 'Disabled'}</span></p>
+                        <p>Status: <span class="status-text status-text--${user.enabled ? 'success' : 'danger'}">${user.enabled ? 'Enabled' : 'Disabled'}</span></p>
                         ${groupsHtml}
                     </div>
                 `;
@@ -394,12 +328,18 @@
             }
         }
 
+        function navigateTo(path) {
+            const basePath = getBasePath();
+            window.location.href = basePath + path;
+        }
+
         function showCreateUserModal() {
-            document.getElementById('createUserModal').style.display = 'flex';
+            document.getElementById('createUserModal').classList.add('active');
+            setTimeout(() => lucide.createIcons(), 0);
         }
 
         function hideCreateUserModal() {
-            document.getElementById('createUserModal').style.display = 'none';
+            document.getElementById('createUserModal').classList.remove('active');
             document.getElementById('createUserForm').reset();
         }
 
@@ -521,14 +461,23 @@
                     }
                 });
 
-                document.getElementById('editUserModal').style.display = 'flex';
+                // Hide delete button if this is the admin user
+                const deleteBtn = document.getElementById('deleteUserBtn');
+                if (user.username.toLowerCase() === 'admin') {
+                    deleteBtn.style.display = 'none';
+                } else {
+                    deleteBtn.style.display = 'inline-block';
+                }
+
+                document.getElementById('editUserModal').classList.add('active');
+                setTimeout(() => lucide.createIcons(), 0);
             } catch (error) {
                 alert('Error loading user: ' + error.message);
             }
         }
 
         function hideEditUserModal() {
-            document.getElementById('editUserModal').style.display = 'none';
+            document.getElementById('editUserModal').classList.remove('active');
             currentUserId = null;
         }
 
@@ -631,6 +580,14 @@
         }
 
         async function deleteUser() {
+            const username = document.getElementById('edit-username').value;
+
+            // Prevent deletion of admin user
+            if (username.toLowerCase() === 'admin') {
+                alert('Cannot delete the admin user!');
+                return;
+            }
+
             if (!confirm('Are you sure you want to delete this user?')) {
                 return;
             }
@@ -661,12 +618,13 @@
             document.getElementById('reset-username').textContent = username;
 
             // Hide edit modal and show reset password modal
-            document.getElementById('editUserModal').style.display = 'none';
-            document.getElementById('resetPasswordModal').style.display = 'flex';
+            document.getElementById('editUserModal').classList.remove('active');
+            document.getElementById('resetPasswordModal').classList.add('active');
+            setTimeout(() => lucide.createIcons(), 0);
         }
 
         function hideResetPasswordModal() {
-            document.getElementById('resetPasswordModal').style.display = 'none';
+            document.getElementById('resetPasswordModal').classList.remove('active');
 
             // Clear the form
             document.getElementById('new-password').value = '';
@@ -674,7 +632,7 @@
             document.getElementById('temporary-password').checked = false;
 
             // Show edit modal again
-            document.getElementById('editUserModal').style.display = 'flex';
+            document.getElementById('editUserModal').classList.add('active');
         }
 
         async function resetPassword() {
@@ -709,7 +667,7 @@
 
                 if (response.ok) {
                     alert('Password reset successfully!');
-                    document.getElementById('resetPasswordModal').style.display = 'none';
+                    document.getElementById('resetPasswordModal').classList.remove('active');
 
                     // Clear the form
                     document.getElementById('new-password').value = '';
@@ -717,7 +675,7 @@
                     document.getElementById('temporary-password').checked = false;
 
                     // Show edit modal again
-                    document.getElementById('editUserModal').style.display = 'flex';
+                    document.getElementById('editUserModal').classList.add('active');
                 } else {
                     const error = await response.json();
                     alert('Error resetting password: ' + (error.error || 'Unknown error'));
@@ -731,6 +689,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadUsers();
             loadGroups();
+            lucide.createIcons();
         });
     </script>
 </body>
