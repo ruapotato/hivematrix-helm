@@ -17,6 +17,15 @@ NC='\033[0m'
 
 echo "Starting HiveMatrix services..."
 
+# Set production mode for systemd (overrides DEV_MODE in .flaskenv)
+# The HIVEMATRIX_DEV_MODE is set by hivematrix.service
+if [ "${HIVEMATRIX_DEV_MODE}" = "false" ]; then
+    export DEV_MODE=false
+    echo "Production mode enabled (Gunicorn with multiple workers)"
+else
+    echo "Development mode enabled (Flask dev server with live reloading)"
+fi
+
 # Activate virtual environment
 source pyenv/bin/activate
 
