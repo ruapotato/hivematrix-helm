@@ -1,6 +1,6 @@
 # HiveMatrix Helm
 
-Kubernetes Helm charts for deploying HiveMatrix.
+Orchestration and management system for HiveMatrix services.
 
 ## Documentation
 
