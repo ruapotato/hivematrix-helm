@@ -10,139 +10,143 @@
     <div class="container">
         <div class="card u-mb-3">
             <div class="card__header">
-                <h1 class="card__title">HiveMatrix Helm</h1>
+                <h1 class="card__title">Helm</h1>
             </div>
             <div class="card__body">
-                <p class="u-m-0">Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
-            </div>
-        </div>
+                <p class="u-mb-3">Welcome, <strong>{{ user.name }}</strong> ({{ user.permission_level }})</p>
 
-        <!-- Security Warning Banner -->
-        <div id="security-banner" class="security-banner u-mb-3">
-            <h3 id="security-banner-title" class="security-banner__title">⚠️ Security Alert</h3>
-            <p id="security-banner-message"></p>
-            <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--danger">
-                <span class="btn__label">
-                    <i data-lucide="lock" class="btn__icon"></i>
-                    View Security Audit
-                </span>
-            </a>
-        </div>
-
-        <div class="card u-mb-3">
-            <div class="card__header">
-                <h2 class="card__title">Quick Links</h2>
-            </div>
-            <div class="card__body">
-                <div class="btn-group">
-                    <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--primary">
-                        <span class="btn__label">
-                            <i data-lucide="lock" class="btn__icon"></i>
-                            Security Audit
-                        </span>
-                    </a>
-                    <a href="#" onclick="navigateTo('/logs'); return false;" class="btn btn--primary">
-                        <span class="btn__label">
-                            <i data-lucide="scroll-text" class="btn__icon"></i>
-                            View All Logs
-                        </span>
-                    </a>
-                    <a href="#" onclick="navigateTo('/metrics'); return false;" class="btn btn--primary">
-                        <span class="btn__label">
-                            <i data-lucide="bar-chart" class="btn__icon"></i>
-                            View Metrics
-                        </span>
-                    </a>
-                    {% if user.permission_level == 'admin' %}
-                    <a href="#" onclick="navigateTo('/modules'); return false;" class="btn btn--primary">
-                        <span class="btn__label">
-                            <i data-lucide="package" class="btn__icon"></i>
-                            Manage Modules
-                        </span>
-                    </a>
-                    <a href="#" onclick="navigateTo('/users'); return false;" class="btn btn--primary">
-                        <span class="btn__label">
-                            <i data-lucide="user" class="btn__icon"></i>
-                            Manage Users
-                        </span>
+                <div class="dashboard-grid dashboard-grid--three-col">
+                    {% set service_order = ['keycloak', 'core', 'nexus', 'helm', 'codex', 'brainhair', 'knowledgetree', 'ledger'] %}
+                    {% for service_name in service_order %}
+                    {% if service_name in statuses %}
+                    {% set status = statuses[service_name] %}
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;" class="dashboard-card" data-service="{{ service_name }}">
+                        <div class="dashboard-card__icon">
+                            {% if service_name == 'keycloak' %}
+                                <i data-lucide="key"></i>
+                            {% elif service_name == 'helm' %}
+                                <i data-lucide="anchor"></i>
+                            {% elif service_name == 'core' %}
+                                <i data-lucide="shield"></i>
+                            {% elif service_name == 'nexus' %}
+                                <i data-lucide="network"></i>
+                            {% elif service_name == 'codex' %}
+                                <i data-lucide="database"></i>
+                            {% elif service_name == 'brainhair' %}
+                                <i data-lucide="brain"></i>
+                            {% elif service_name == 'knowledgetree' %}
+                                <i data-lucide="tree-deciduous"></i>
+                            {% elif service_name == 'ledger' %}
+                                <i data-lucide="receipt"></i>
+                            {% else %}
+                                <i data-lucide="server"></i>
+                            {% endif %}
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">{{ service_name }}</h2>
+                            <div class="dashboard-card__meta">
+                                <span class="status-text status-text--{{ 'success' if status.status == 'running' else 'danger' }} service-status">
+                                    {{ status.status }}
+                                </span>
+                                <span class="status-text status-text--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }} service-health">
+                                    {{ status.health }}
+                                </span>
+                            </div>
+                        </div>
                     </a>
                     {% endif %}
+                    {% endfor %}
+
+                    {# Display any services not in the predefined order #}
+                    {% for service_name, status in statuses.items() %}
+                    {% if service_name not in service_order %}
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;" class="dashboard-card" data-service="{{ service_name }}">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="server"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">{{ service_name }}</h2>
+                            <div class="dashboard-card__meta">
+                                <span class="status-text status-text--{{ 'success' if status.status == 'running' else 'danger' }} service-status">
+                                    {{ status.status }}
+                                </span>
+                                <span class="status-text status-text--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }} service-health">
+                                    {{ status.health }}
+                                </span>
+                            </div>
+                        </div>
+                    </a>
+                    {% endif %}
+                    {% endfor %}
                 </div>
             </div>
         </div>
 
         <div class="card">
             <div class="card__header">
-                <h2 class="card__title">Services Overview</h2>
+                <h2 class="card__title">Settings</h2>
             </div>
             <div class="card__body">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Service</th>
-                            <th>Status</th>
-                            <th>Health</th>
-                            <th>Port</th>
-                            <th>PID</th>
-                            <th>CPU %</th>
-                            <th>Memory (MB)</th>
-                            <th>Logs (1h)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for service_name, status in statuses.items() %}
-                        <tr data-service="{{ service_name }}">
-                            <td>
-                                <a href="#" onclick="navigateTo('/service/{{ service_name }}'); return false;">{{ service_name }}</a>
-                            </td>
-                            <td>
-                                <span class="status-text status-text--{{ 'success' if status.status == 'running' else 'danger' }}">
-                                    {{ status.status }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="status-text status-text--{{ 'success' if status.health == 'healthy' else 'warning' if status.health == 'degraded' else 'danger' }}">
-                                    {{ status.health }}
-                                </span>
-                            </td>
-                            <td>{{ status.configured_port or 'N/A' }}</td>
-                            <td class="pid-cell">{{ status.pid or '-' }}</td>
-                            <td class="cpu-cell">
-                                {% if status.cpu_percent is not none %}
-                                    {{ "%.1f"|format(status.cpu_percent) }}%
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td class="mem-cell">
-                                {% if status.memory_mb is not none %}
-                                    {{ "%.1f"|format(status.memory_mb) }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% set stats = log_stats.get(service_name, {}) %}
-                                {% if stats %}
-                                    <span class="log-stats">
-                                        {% if stats.get('ERROR', 0) > 0 %}
-                                            <span class="status-text status-text--danger">E: {{ stats.get('ERROR', 0) }}</span>
-                                        {% endif %}
-                                        {% if stats.get('WARNING', 0) > 0 %}
-                                            <span class="status-text status-text--warning">W: {{ stats.get('WARNING', 0) }}</span>
-                                        {% endif %}
-                                        {% if stats.get('INFO', 0) > 0 %}
-                                            <span class="status-text status-text--info">I: {{ stats.get('INFO', 0) }}</span>
-                                        {% endif %}
-                                    </span>
-                                {% else %}
-                                    <span class="log-stats">-</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <!-- Security Warning Banner -->
+                <div id="security-banner" class="security-banner u-mb-3">
+                    <h3 id="security-banner-title" class="security-banner__title">⚠️ Security Alert</h3>
+                    <p id="security-banner-message"></p>
+                    <a href="#" onclick="navigateTo('/security'); return false;" class="btn btn--danger">
+                        <span class="btn__label">
+                            <i data-lucide="lock" class="btn__icon"></i>
+                            View Security Audit
+                        </span>
+                    </a>
+                </div>
+
+                <div class="dashboard-grid dashboard-grid--three-col">
+                    <a href="#" onclick="navigateTo('/security'); return false;" class="dashboard-card">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="lock"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">Security Audit</h2>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="navigateTo('/logs'); return false;" class="dashboard-card">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="scroll-text"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">System Logs</h2>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="navigateTo('/metrics'); return false;" class="dashboard-card">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="bar-chart"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">Metrics</h2>
+                        </div>
+                    </a>
+
+                    {% if user.permission_level == 'admin' %}
+                    <a href="#" onclick="navigateTo('/modules'); return false;" class="dashboard-card">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="package"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">Manage Modules</h2>
+                        </div>
+                    </a>
+
+                    <a href="#" onclick="navigateTo('/users'); return false;" class="dashboard-card">
+                        <div class="dashboard-card__icon">
+                            <i data-lucide="user"></i>
+                        </div>
+                        <div class="dashboard-card__content">
+                            <h2 class="dashboard-card__title">Manage Users</h2>
+                        </div>
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -206,68 +210,39 @@
             fetch(`${basePath}/api/dashboard/status`)
                 .then(response => response.json())
                 .then(data => {
-                    updateServiceTable(data.statuses, data.log_stats);
+                    updateServiceCards(data.statuses);
                 })
                 .catch(error => {
                     console.error('Failed to update dashboard:', error);
                 });
         }
 
-        function updateServiceTable(statuses, logStats) {
-            const tbody = document.querySelector('table tbody');
-            if (!tbody) return;
+        function updateServiceCards(statuses) {
+            const grid = document.querySelector('.dashboard-grid');
+            if (!grid) return;
 
-            // Update each row
+            // Update each card
             Object.keys(statuses).forEach(serviceName => {
                 const status = statuses[serviceName];
-                const row = tbody.querySelector(`tr[data-service="${serviceName}"]`);
-                if (!row) return; // Service not in table yet, would need full reload
+                const card = grid.querySelector(`[data-service="${serviceName}"]`);
+                if (!card) return; // Service not in grid yet, would need full reload
 
                 // Update status text
-                const statusText = row.querySelectorAll('.status-text')[0];
+                const statusText = card.querySelector('.service-status');
                 if (statusText) {
-                    statusText.className = `status-text status-text--${status.status === 'running' ? 'success' : 'danger'}`;
+                    statusText.className = `status-text status-text--${status.status === 'running' ? 'success' : 'danger'} service-status`;
                     statusText.textContent = status.status;
                 }
 
                 // Update health text
-                const healthText = row.querySelectorAll('.status-text')[1];
+                const healthText = card.querySelector('.service-health');
                 if (healthText) {
-                    let statusClass = 'status-text';
+                    let statusClass = 'status-text service-health';
                     if (status.health === 'healthy') statusClass += ' status-text--success';
                     else if (status.health === 'degraded') statusClass += ' status-text--warning';
                     else statusClass += ' status-text--danger';
                     healthText.className = statusClass;
                     healthText.textContent = status.health;
-                }
-
-                // Update PID
-                const pidCell = row.querySelector('.pid-cell');
-                if (pidCell) pidCell.textContent = status.pid || '-';
-
-                // Update CPU
-                const cpuCell = row.querySelector('.cpu-cell');
-                if (cpuCell) cpuCell.textContent = status.cpu_percent != null ? status.cpu_percent.toFixed(1) + '%' : '-';
-
-                // Update Memory
-                const memCell = row.querySelector('.mem-cell');
-                if (memCell) memCell.textContent = status.memory_mb != null ? status.memory_mb.toFixed(1) : '-';
-
-                // Update log stats
-                const logStatsCell = row.querySelector('.log-stats');
-                if (logStatsCell && logStats[serviceName]) {
-                    const stats = logStats[serviceName];
-                    let html = '';
-                    if (stats.ERROR && stats.ERROR > 0) {
-                        html += `<span class="status-text status-text--danger">E: ${stats.ERROR}</span> `;
-                    }
-                    if (stats.WARNING && stats.WARNING > 0) {
-                        html += `<span class="status-text status-text--warning">W: ${stats.WARNING}</span> `;
-                    }
-                    if (stats.INFO && stats.INFO > 0) {
-                        html += `<span class="status-text status-text--info">I: ${stats.INFO}</span>`;
-                    }
-                    logStatsCell.innerHTML = html || '-';
                 }
             });
         }

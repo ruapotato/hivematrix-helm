@@ -452,8 +452,18 @@ def delete_keycloak_user(user_id):
     keycloak_url = app.config.get('KEYCLOAK_SERVER_URL', 'http://localhost:8080')
     realm = app.config.get('KEYCLOAK_REALM', 'hivematrix')
 
+    # First, get the user to check if it's the admin user
     user_url = f"{keycloak_url}/admin/realms/{realm}/users/{user_id}"
     headers = {'Authorization': f'Bearer {token}'}
+
+    user_response = http_requests.get(user_url, headers=headers)
+    if user_response.status_code == 200:
+        user_data = user_response.json()
+        username = user_data.get('username', '').lower()
+
+        # Prevent deletion of admin user
+        if username == 'admin':
+            return {'error': 'Cannot delete the admin user'}, 403
 
     response = http_requests.delete(user_url, headers=headers)
 

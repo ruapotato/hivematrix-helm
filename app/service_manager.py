@@ -461,7 +461,7 @@ class ServiceManager:
 
         for endpoint in health_endpoints:
             try:
-                response = requests.get(f"{config['url']}{endpoint}", timeout=2)
+                response = requests.get(f"{config['url']}{endpoint}", timeout=2, verify=False)
                 if response.status_code == 200:
                     result['health'] = 'healthy'
                     result['health_message'] = f'Service responding at {endpoint}'

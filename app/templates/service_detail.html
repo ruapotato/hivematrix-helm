@@ -12,7 +12,7 @@
             <div class="card__header">
                 <h1 class="card__title">{{ service_name }}</h1>
                 <div class="card__header-actions">
-                    <button class="btn btn--primary" onclick="navigateTo('/')">
+                    <button class="btn" onclick="navigateTo('/')">
                         <span class="btn__label">
                             <i data-lucide="arrow-left" class="btn__icon"></i>
                             Back to Dashboard
@@ -86,30 +86,6 @@
                             View Process Logs
                         </span>
                     </button>
-
-                    {% if user.permission_level == 'admin' %}
-                        {% if status.status == 'running' %}
-                            <button class="btn btn--danger" onclick="controlService('{{ service_name }}', 'stop')">
-                                <span class="btn__label">
-                                    <i data-lucide="stop-circle" class="btn__icon"></i>
-                                    Stop Service
-                                </span>
-                            </button>
-                            <button class="btn" onclick="controlService('{{ service_name }}', 'restart')">
-                                <span class="btn__label">
-                                    <i data-lucide="refresh-cw" class="btn__icon"></i>
-                                    Restart Service
-                                </span>
-                            </button>
-                        {% else %}
-                            <button class="btn btn--primary" onclick="controlService('{{ service_name }}', 'start')">
-                                <span class="btn__label">
-                                    <i data-lucide="play-circle" class="btn__icon"></i>
-                                    Start Service
-                                </span>
-                            </button>
-                        {% endif %}
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -163,34 +139,6 @@
         function navigateTo(path) {
             const basePath = getBasePath();
             window.location.href = basePath + path;
-        }
-
-        function controlService(serviceName, action) {
-            if (!confirm(`Are you sure you want to ${action} ${serviceName}?`)) {
-                return;
-            }
-
-            const basePath = getBasePath();
-            fetch(`${basePath}/api/services/${serviceName}/${action}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + getAuthToken()
-                },
-                body: JSON.stringify({ mode: 'development' })
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message || 'Action completed');
-                location.reload();
-            })
-            .catch(error => {
-                alert('Error: ' + error);
-            });
-        }
-
-        function getAuthToken() {
-            return '';
         }
 
         // Initialize Lucide icons on page load
