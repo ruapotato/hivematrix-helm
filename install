@@ -272,14 +272,6 @@ case "$MODULE_NAME" in
                     --db-user '$DB_USER' \
                     --db-password '$DB_PASSWORD' \
                     --create-sample-data"
-            elif [ "$MODULE_NAME" == "archive" ]; then
-                # Archive uses different argument names
-                run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
-                    --host localhost \
-                    --port 5432 \
-                    --database '$DB_NAME' \
-                    --user '$DB_USER' \
-                    --password '$DB_PASSWORD'"
             else
                 run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
                     --db-host localhost \
@@ -290,23 +282,13 @@ case "$MODULE_NAME" in
             fi
         else
             # Existing database - run migration only
-            if [ "$MODULE_NAME" == "archive" ]; then
-                # Archive uses different argument names and doesn't support migrate-only
-                run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
-                    --host localhost \
-                    --port 5432 \
-                    --database '$DB_NAME' \
-                    --user '$DB_USER' \
-                    --password '$DB_PASSWORD'"
-            else
-                run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
-                    --db-host localhost \
-                    --db-port 5432 \
-                    --db-name '$DB_NAME' \
-                    --db-user '$DB_USER' \
-                    --db-password '$DB_PASSWORD' \
-                    --migrate-only"
-            fi
+            run_as_user bash -c "cd '$MODULE_DIR' && source pyenv/bin/activate && python init_db.py --headless \
+                --db-host localhost \
+                --db-port 5432 \
+                --db-name '$DB_NAME' \
+                --db-user '$DB_USER' \
+                --db-password '$DB_PASSWORD' \
+                --migrate-only"
         fi
 
         unset PGPASSWORD
