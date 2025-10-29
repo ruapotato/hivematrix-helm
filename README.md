@@ -1,15 +1,16 @@
 # HiveMatrix Helm
 
-**Service Orchestration, Monitoring, and Centralized Logging for HiveMatrix**
+**The Service Manager and Operations Center for HiveMatrix**
 
-Helm is the operational control center for the HiveMatrix ecosystem. It provides service management, real-time monitoring, centralized logging, and performance metrics collection for all HiveMatrix services.
+Helm is the operational control center for the HiveMatrix ecosystem. It manages the lifecycle of all services, collects centralized logs, monitors performance metrics, and provides security auditing tools. Helm provides both CLI tools and a comprehensive web dashboard for managing the entire platform.
 
 ---
 ## Table of Contents
 
+- [Overview](#overview)
+- [Quick Start](#quick-start)
 - [Features](#features)
 - [Architecture](#architecture)
-- [Quick Start](#quick-start)
 - [Installation](#installation)
   - [Ubuntu Installation](#ubuntu-installation)
   - [Keycloak Setup](#keycloak-setup)
@@ -23,6 +24,31 @@ Helm is the operational control center for the HiveMatrix ecosystem. It provides
 - [Production Deployment](#production-deployment)
 - [Troubleshooting](#troubleshooting)
 - [Database Schema](#database-schema)
+
+---
+
+## Overview
+
+Helm provides:
+- **Service Management**: Start, stop, restart, and monitor all HiveMatrix services
+- **Centralized Logging**: Collect and query logs from all services via REST API
+- **Performance Monitoring**: Track CPU, memory, and health metrics in real-time
+- **Security Auditing**: Analyze port bindings and generate firewall configurations
+- **User Management**: CRUD operations for Keycloak users and groups
+- **Module Management**: Install, update, and remove HiveMatrix modules
+
+**Port:** 5004 (standard)
+
+### What Helm Does
+
+Helm is the orchestration layer that ties the HiveMatrix ecosystem together:
+
+1. **Controls Service Lifecycle** - Manages starting/stopping of Keycloak, Core, Nexus, Codex, Brainhair, Ledger, KnowledgeTree, and any custom modules
+2. **Aggregates Logs** - All services send logs to Helm's PostgreSQL database for centralized viewing, filtering, and search
+3. **Monitors Health** - Continuously checks service status, CPU/memory usage, and HTTP health endpoints
+4. **Manages Users** - Provides UI and API for Keycloak user administration without direct Keycloak access
+5. **Handles Security** - Audits network exposure and helps configure firewall rules
+6. **Facilitates Deployment** - One-command startup script (`start.sh`) brings up the entire ecosystem
 
 ---
 
@@ -68,26 +94,49 @@ This creates a systemd user service that starts HiveMatrix on boot. See [AUTOSTA
 - Development vs Production mode switching
 - Process monitoring (PID, CPU, memory)
 - Service discovery via `services.json`
-- Requires Keycloak, Core, and Nexus to be running for web access
+- Multi-level health checks (process, port, HTTP)
 
 ### 📝 Centralized Logging
 - Immutable log storage in PostgreSQL
 - REST API for log ingestion from all services
 - Context-aware logging with JSON support
-- Trace ID for request correlation
-- Advanced filtering and search
+- Trace ID for request correlation across services
+- Advanced filtering and search (service, level, time range, trace ID, user)
+- Real-time log streaming in web dashboard
 
 ### 📊 Performance Monitoring
 - Real-time CPU and memory tracking
 - Time-series metrics storage
-- Multi-level health checks (process, port, HTTP)
 - Historical performance data
+- Service uptime tracking
+- Auto-refresh dashboards
+
+### 🔒 Security Auditing
+- Network port binding analysis
+- External exposure detection
+- Firewall configuration generation (UFW/iptables)
+- Security recommendations
+- Admin user deletion protection
+
+### 👥 User Management
+- Keycloak user CRUD operations
+- Group management (admin, technician, billing, client)
+- Password reset functionality
+- User synchronization between Keycloak and services
+
+### 📦 Module Management
+- Install HiveMatrix modules from Git repositories
+- Update existing modules (git pull)
+- Uninstall modules
+- Installation log viewing
 
 ### 🖥️ Web Dashboard
 - Service overview with live status
-- One-click service control (admin only)
-- Centralized log viewer
+- Dashboard cards showing service health
+- Centralized log viewer with filtering
 - Metrics visualization
+- Security audit reports
+- User and module management interfaces
 
 ---
 
@@ -114,17 +163,19 @@ Helm integrates with HiveMatrix as the operations hub:
 ```
 
 **Key Components:**
-- **Service Manager** - Controls service lifecycle
-- **Log Aggregator** - Collects logs from all services
-- **Health Monitor** - Tracks service status
-- **Metrics Collector** - Gathers performance data
+- **Service Manager** (`service_manager.py`) - Controls service lifecycle, monitors processes
+- **Log Aggregator** (REST API) - Collects logs from all services via `/api/logs/ingest`
+- **Health Monitor** - Tracks service status (running/stopped), health checks, resource usage
+- **Metrics Collector** - Gathers CPU/memory performance data
+- **Security Auditor** - Analyzes network bindings and firewall status
 - **PostgreSQL Database** - Stores logs, metrics, and service status
 
 **Integration:**
 - All services send logs to Helm via REST API
 - Helm can start/stop services via process management
 - Services remain independently runnable
-- Helm provides centralized visibility
+- Helm provides centralized visibility and control
+- Service configuration synced via `master_services.json`
 
 ---
 
@@ -232,27 +283,58 @@ When prompted, enter:
 The script will:
 1. Test the database connection
 2. Save configuration to `instance/helm.conf`
-3. Create all required tables
+3. Create all required tables (log_entries, service_status, service_metrics)
 
 #### 7. Configure Services
 
-Edit `services.json`:
+Edit `services.json` and `master_services.json`:
 
+**services.json** - Used by Helm to manage services:
 ```json
 {
+  "keycloak": {
+    "url": "http://localhost:8080",
+    "path": "../keycloak-26.4.0",
+    "port": 8080,
+    "start_command": "bin/kc.sh start-dev",
+    "type": "keycloak",
+    "visible": true,
+    "admin_only": true
+  },
   "core": {
     "url": "http://localhost:5000",
     "path": "../hivematrix-core",
     "port": 5000,
     "python_bin": "pyenv/bin/python",
-    "run_script": "run.py"
+    "run_script": "run.py",
+    "visible": true,
+    "admin_only": true
   },
   "codex": {
-    "url": "http://localhost:5001",
+    "url": "http://localhost:5010",
     "path": "../hivematrix-codex",
-    "port": 5001,
+    "port": 5010,
     "python_bin": "pyenv/bin/python",
-    "run_script": "run.py"
+    "run_script": "run.py",
+    "visible": true
+  }
+}
+```
+
+**master_services.json** - Synced to all services for service discovery:
+```json
+{
+  "keycloak": {
+    "url": "http://localhost:8080",
+    "port": 8080
+  },
+  "core": {
+    "url": "http://localhost:5000",
+    "port": 5000
+  },
+  "codex": {
+    "url": "http://localhost:5010",
+    "port": 5010
   }
 }
 ```
@@ -285,30 +367,6 @@ This will automatically:
 - Configure the group mapper
 - Create an admin user (admin/admin)
 
-**Alternative: Manual Setup**
-
-If you prefer manual setup or already have Keycloak, edit `services.json` to include Keycloak:
-
-```json
-{
-  "keycloak": {
-    "url": "http://localhost:8080",
-    "path": "../keycloak-26.3.5",
-    "port": 8080,
-    "start_command": "bin/kc.sh start-dev",
-    "type": "keycloak"
-  },
-  "core": {
-    "url": "http://localhost:5000",
-    "path": "../hivematrix-core",
-    "port": 5000,
-    "python_bin": "pyenv/bin/python",
-    "run_script": "run.py"
-  },
-  ...other services...
-}
-```
-
 #### 9. Start Everything
 
 ```bash
@@ -317,7 +375,7 @@ If you prefer manual setup or already have Keycloak, edit `services.json` to inc
 
 This will automatically:
 - Start Keycloak, Core, Nexus
-- Start additional services (Codex, Ledger, KnowledgeTree)
+- Start additional services (Codex, Ledger, KnowledgeTree, Brainhair)
 - Sync service configurations
 - Start Helm web interface
 
@@ -336,7 +394,7 @@ Should return:
 
 #### 11. Access the Dashboard
 
-Open your browser to `http://localhost:8000/`
+Open your browser to `https://localhost:443/`
 
 Login with:
 - Username: **admin**
@@ -363,18 +421,18 @@ This script will:
 1. Start Keycloak (or detect if already running)
 2. Start Core (or detect if already running)
 3. Start Nexus (or detect if already running)
-4. Start additional services (Codex, Ledger, KnowledgeTree)
+4. Start additional services (Codex, Ledger, KnowledgeTree, Brainhair)
 5. Sync master services configuration to all services
 6. Start Helm web interface
 7. Display the Nexus URL for login
 
-When complete, visit **http://localhost:8000** to log in via Nexus/Keycloak.
+When complete, visit **https://localhost:443** to log in via Nexus/Keycloak.
 
 **To stop all services:** Press `Ctrl+C` in the terminal running start.sh
 
-The script will cleanly shut down all services in the correct order (Helm → Nexus → Core → Keycloak).
+The script will cleanly shut down all services in the correct order (Helm → services → Nexus → Core → Keycloak).
 
-**Alternative:** If you need to stop services from a different terminal (or if the startup terminal was closed):
+**Alternative:** If you need to stop services from a different terminal:
 
 ```bash
 ./stop_all.sh
@@ -417,43 +475,14 @@ Helm will verify that Keycloak, Core, and Nexus are running. If any are missing,
 
 #### Step 3: Access the Dashboard
 
-Open your browser to `http://localhost:8000` (Nexus login page)
+Open your browser to `https://localhost:443` (Nexus login page)
 
 After authentication via Keycloak, you can access:
-- Helm Dashboard at `http://localhost:5004`
+- Helm Dashboard
 - Start other services (Codex, Ledger, KnowledgeTree, etc.)
 - Monitor all services
 - View centralized logs
 - Check metrics
-
-### Alternative: Manual Service Startup
-
-You can start services manually instead of using Helm:
-
-```bash
-# Start Keycloak manually
-cd ../keycloak-26.4.0
-export KEYCLOAK_ADMIN=admin
-export KEYCLOAK_ADMIN_PASSWORD=admin
-bin/kc.sh start-dev
-
-# Start other services in separate terminals
-cd ../hivematrix-core && ./start.sh
-cd ../hivematrix-nexus && ./start.sh
-cd ../hivematrix-helm && python run.py
-```
-
----
-
-### General Installation
-
-For non-Ubuntu systems, follow these steps:
-
-1. **Install PostgreSQL** for your platform
-2. **Create database and user** (see Ubuntu steps 3 above)
-3. **Install Python 3.8+** and pip
-4. **Install build dependencies** for psycopg2
-5. **Follow steps 5-9** from Ubuntu installation
 
 ---
 
@@ -500,7 +529,9 @@ Used by Helm to manage and start services:
     "path": "../relative/path/to/service",
     "port": port_number,
     "python_bin": "pyenv/bin/python",
-    "run_script": "run.py"
+    "run_script": "run.py",
+    "visible": true,
+    "admin_only": false
   }
 }
 ```
@@ -513,6 +544,8 @@ Used by Helm to manage and start services:
 - `python_bin` - Path to Python executable (for Python services, relative to service directory)
 - `run_script` - Script to run to start the service (for Python services)
 - `start_command` - Command to start the service (for Keycloak and other non-Python services)
+- `visible` - Whether service appears in Nexus sidebar (true/false)
+- `admin_only` - Whether service is restricted to admins (true/false)
 
 #### 2. `master_services.json` - Ecosystem-wide Service Directory
 
@@ -522,8 +555,7 @@ The master service directory that gets synced to all services when they start:
 {
   "service_name": {
     "url": "http://localhost:port",
-    "port": port_number,
-    "description": "Service description"
+    "port": port_number
   }
 }
 ```
@@ -573,11 +605,10 @@ python cli.py restart core --mode development
 
 ### Web Dashboard
 
-Access at `http://localhost:5004/` (requires Keycloak, Core, and Nexus to be running)
+Access at `https://localhost:443/helm/` (requires Keycloak, Core, and Nexus to be running)
 
 **Features:**
-- **Service Overview** - View status of all services
-- **Service Control** - Start/stop/restart services (admin only)
+- **Service Overview** - Dashboard cards showing status of all services
 - **Live Logs** - View logs from all services with real-time streaming
 - **Metrics** - CPU, memory, uptime, and performance data
 - **Service Details** - Detailed view per service with process logs
@@ -589,35 +620,37 @@ Access at `http://localhost:5004/` (requires Keycloak, Core, and Nexus to be run
 
 All dashboard pages follow a consistent design system using Nexus's global CSS:
 
-1. **Index (/)** - Main dashboard with service overview table
+1. **Index (/)** - Main dashboard with service overview
    - Real-time status updates (5-second polling)
-   - Service health indicators
-   - CPU/Memory usage
-   - Log statistics (errors, warnings, info)
-   - Quick action buttons (start/stop/restart) with icons
+   - Service health indicators (healthy, degraded, unreachable)
+   - Dashboard cards for each service with status badges
+   - Settings section with Security Audit, Logs, Metrics, Modules, Users
 
 2. **Logs (/logs)** - Centralized log viewer
    - Live log streaming with auto-scroll
    - Service and level filtering
    - Search functionality
    - Color-coded log levels
+   - Pause/resume live updates
 
 3. **Metrics (/metrics)** - Performance metrics
    - Service resource usage table
+   - CPU and memory tracking
    - Uptime tracking
    - Auto-refresh every 5 seconds
 
 4. **Security (/security)** - Security audit tool
    - Port binding analysis
+   - External exposure detection
    - Firewall status check
    - Security recommendations
    - Firewall script generation (UFW/iptables)
 
 5. **Modules (/modules)** - Module management (admin only)
    - Available and installed modules
+   - Installation from Git repositories
+   - Update (git pull) and uninstall actions
    - Installation logs modal
-   - Update and uninstall actions
-   - Custom module installation from Git
 
 6. **Users (/users)** - User management (admin only)
    - Keycloak user CRUD operations
@@ -627,13 +660,15 @@ All dashboard pages follow a consistent design system using Nexus's global CSS:
 
 7. **Service Detail (/service/{name})** - Individual service view
    - Detailed service information
-   - Recent application logs
-   - Service control buttons
+   - Status, health, PID, port, CPU, memory
+   - Recent application logs (last 50)
+   - Link to view process logs
 
 8. **Service Logs (/service/{name}/logs)** - Process output viewer
    - View stdout/stderr from service processes
    - Real-time process logs
    - Filter by output type (both, stdout, stderr)
+   - Shows actual console output from service startup
 
 9. **Apps (/apps)** - Application management (if configured)
    - System dependencies
@@ -651,7 +686,7 @@ All Helm templates use:
 - **Consistent Buttons** - Primary, secondary, danger, warning, success variants
 - **Status Indicators** - Color-coded text (not badges) for better accessibility
 - **Modal Dialogs** - For installation logs, user editing, password reset
-- **Tab Navigation** - For multi-section pages (apps, modules)
+- **Dashboard Cards** - Flexible card components with icons, titles, metadata
 
 ### API Endpoints
 
@@ -667,21 +702,11 @@ GET /api/services/status
 # Get specific service status
 GET /api/services/{service_name}/status
 
-# Start a service
-POST /api/services/{service_name}/start
-{
-  "mode": "development"  # or "production"
-}
-
-# Stop a service
-POST /api/services/{service_name}/stop
-
-# Restart a service
-POST /api/services/{service_name}/restart
-{
-  "mode": "development"
-}
+# Get dashboard status (used by frontend)
+GET /api/dashboard/status
 ```
+
+**Note:** Service start/stop/restart functionality has been removed from the API. Services should be managed via the CLI or start.sh script.
 
 #### Log Ingestion
 
@@ -722,6 +747,35 @@ GET /api/logs/{log_id}
 ```bash
 # Get service metrics
 GET /api/metrics/{service_name}?start_time=2025-01-01T00:00:00&end_time=2025-01-02T00:00:00
+```
+
+#### Security
+
+```bash
+# Run security audit
+GET /api/security/audit
+
+# Apply firewall rules
+POST /api/security/apply-firewall
+```
+
+#### User Management
+
+```bash
+# List Keycloak users
+GET /api/users
+
+# Create user
+POST /api/users
+
+# Get user details
+GET /api/users/{user_id}
+
+# Update user
+PUT /api/users/{user_id}
+
+# Delete user (admin protection enforced)
+DELETE /api/users/{user_id}
 ```
 
 #### Health Check
@@ -969,7 +1023,7 @@ sudo systemctl restart postgresql
 4. Port not already in use: `sudo lsof -i :5001`
 
 **View Helm logs for details:**
-- Web dashboard: http://localhost:5004/logs
+- Web dashboard: https://localhost:443/helm/logs
 - Or check terminal output
 
 ### Logs Not Appearing
@@ -999,6 +1053,7 @@ curl -X POST http://localhost:5004/api/logs/ingest \
 2. Check service logs directly
 3. Service may not implement `/health` endpoint
 4. Firewall may be blocking the port
+5. SSL certificate issues (for HTTPS services like Nexus)
 
 ### Port Already in Use
 
@@ -1127,39 +1182,50 @@ CREATE INDEX idx_metrics_name ON service_metrics(metric_name, timestamp DESC);
 - Helm validates tokens via Core's public key
 
 **Authorization:**
-- **Admin:** Full control (start/stop services, all logs)
+- **Admin:** Full control (manage services, all logs, user management)
 - **Technician:** Read logs, view metrics
 - **Billing:** Service-specific logs only
 - **Client:** Limited access
 
 **Best Practices:**
-1. Use strong PostgreSQL passwords
-2. Enable firewall (ufw) and only allow required ports
-3. Use HTTPS in production (Let's Encrypt)
-4. Run as non-root user
-5. Keep system updated
-6. Restrict database access to localhost unless needed
-7. Back up database regularly
-8. Configure log retention to manage storage
+1. Change default Keycloak admin password (admin/admin) immediately
+2. Use strong PostgreSQL passwords
+3. Enable firewall (ufw) and only allow required ports
+4. Use HTTPS in production (via Nexus with SSL)
+5. Run as non-root user
+6. Keep system updated
+7. Restrict database access to localhost unless needed
+8. Back up database regularly
+9. Configure log retention to manage storage
+10. Admin user cannot be deleted (enforced protection)
 
 ---
 
-## Future Enhancements
+## Related Modules
 
-- WebSocket support for live log streaming
-- Alert system for errors and downtime
-- Automated service restart on failure
-- Advanced metrics visualization with charts
-- Container/Docker support
-- Distributed tracing integration (OpenTelemetry)
-- Multi-instance Helm deployment
-- Elasticsearch integration for log search
-- Time-series database (InfluxDB) for metrics
-- Anomaly detection
-- Predictive scaling
+- **HiveMatrix Core** (Port 5000): Authentication and identity management
+- **HiveMatrix Nexus** (Port 443): UI composition and routing proxy with SSL
+- **HiveMatrix Codex** (Port 5010): Data platform for companies, contacts, assets, tickets
+- **HiveMatrix Brainhair** (Port 5050): AI assistant with access to organizational data
+- **HiveMatrix Ledger** (Port 5030): Billing calculations and client invoicing
+- **HiveMatrix KnowledgeTree** (Port 5020): Documentation and knowledge base
 
 ---
 
 ## License
 
 See main HiveMatrix LICENSE file
+
+---
+
+## Contributing
+
+When adding features to Helm:
+1. Follow the HiveMatrix architecture patterns
+2. Use `@token_required` for all protected routes
+3. Use BEM classes for all HTML (no CSS in this service)
+4. Update this README with new API endpoints
+5. Test service management and logging thoroughly
+6. Consider impact on all services in the ecosystem
+
+For questions, refer to `ARCHITECTURE.md` in the main HiveMatrix repository.
