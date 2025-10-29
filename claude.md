@@ -1,19 +1,28 @@
 # Claude AI Assistant Guidelines for HiveMatrix
 
-**VERSION:** 2.0
-**LAST UPDATED:** 2025-10-28
+**VERSION:** 3.0
+**LAST UPDATED:** 2025-10-29
 
 ---
 
 ## 🚨 CRITICAL: READ THIS FIRST
 
-**BEFORE doing ANYTHING else, you MUST read the complete ARCHITECTURE.md file:**
+**BEFORE doing ANYTHING else, you MUST read the complete documentation:**
 
-```bash
-# Location: /home/troy/projects/hivematrix/hivematrix-helm/ARCHITECTURE.md
-```
+### Primary Documentation Sources
 
-**ARCHITECTURE.md is the single source of truth for this project.** All patterns, conventions, and design decisions are documented there. Violating the architecture will break the system.
+1. **Online Documentation** (Preferred): https://ruapotato.github.io/hivematrix-docs/
+   - Use WebFetch to read the documentation pages
+   - Start with the [Architecture](https://ruapotato.github.io/hivematrix-docs/ARCHITECTURE/) page
+   - Check [Installation Guide](https://ruapotato.github.io/hivematrix-docs/installation/) for setup procedures
+   - Review [Services Overview](https://ruapotato.github.io/hivematrix-docs/services-overview/) to understand each component
+
+2. **Local ARCHITECTURE.md** (if working offline):
+   ```bash
+   # Location: hivematrix-helm/ARCHITECTURE.md
+   ```
+
+**The ARCHITECTURE documentation is the single source of truth for this project.** All patterns, conventions, and design decisions are documented there. Violating the architecture will break the system.
 
 **Do NOT:**
 - Skip reading ARCHITECTURE.md
