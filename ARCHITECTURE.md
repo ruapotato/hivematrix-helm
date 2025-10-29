@@ -1251,7 +1251,153 @@ python config_manager.py sync-all
 
 Or restart the platform with `./start.sh` which automatically syncs configs.
 
-## 9. Development & Debugging Tools
+## 9. Backup & Restore System
+
+HiveMatrix includes comprehensive backup and restore tools that export and import all platform data. These tools run standalone with sudo access and are not integrated with the web interface.
+
+### Overview
+
+The backup system creates timestamped ZIP archives containing:
+- **PostgreSQL databases** - All application databases and global objects (roles, tablespaces)
+- **Neo4j databases** - Graph database used by KnowledgeTree
+- **Keycloak directory** - Authentication server data, configuration, and themes
+
+Backups default to `/tmp` and are owned by the user who ran sudo (not root).
+
+### Architecture & Technical Details
+
+#### PostgreSQL Backup
+- Uses `sudo -u postgres pg_dump` for peer authentication (no passwords needed)
+- Dumps each database to individual `.sql` files
+- Backs up global objects with `pg_dumpall -g`
+- Discovers databases by scanning service configs in `instance/*.conf`
+
+#### Neo4j Backup
+- Uses `sudo neo4j-admin database dump` for proper backup
+- **Requires Neo4j to be stopped** before backup
+- Creates `.dump` files that preserve all graph data
+- Cannot use directory copy - must use neo4j-admin tools
+
+#### Keycloak Backup
+- Uses `tar` to create compressed archive of entire Keycloak directory
+- Preserves all permissions, ownership, and executable bits
+- Excludes log files and temporary directories
+- Includes themes, configuration, and data
+
+### Usage
+
+#### Creating a Backup
+
+```bash
+cd hivematrix-helm
+sudo python3 backup.py [output_file]
+```
+
+**Important:**
+1. **Stop Neo4j before backup:** `sudo systemctl stop neo4j`
+2. Run with sudo for database access
+3. Output file is optional - defaults to `/tmp/hivematrix_backup_YYYY-MM-DD_HH-MM-SS.zip`
+4. Final zip file will be owned by the user who ran sudo
+
+**Example:**
+```bash
+sudo systemctl stop neo4j
+sudo python3 backup.py
+# Creates: /tmp/hivematrix_backup_2025-10-29_14-30-00.zip
+sudo systemctl start neo4j
+```
+
+#### Restoring from Backup
+
+```bash
+cd hivematrix-helm
+./stop.sh  # Stop all HiveMatrix services
+sudo systemctl stop neo4j
+sudo python3 restore.py /tmp/hivematrix_backup_2025-10-29_14-30-00.zip
+```
+
+**Important:**
+1. **Stop all services first** - Use `./stop.sh` to stop HiveMatrix services
+2. **Stop Neo4j** - `sudo systemctl stop neo4j`
+3. Run with sudo for database access
+4. Restore will prompt for confirmation before overwriting data
+5. Start services after restore: `./start.sh` and `sudo systemctl start neo4j`
+
+**Warning:** Restore will **OVERWRITE** existing data. Make sure you have a current backup before restoring.
+
+### Backup Flow
+
+```
+1. User runs: sudo python3 backup.py
+2. Script creates temp directory: /tmp/hivematrix_backup_XXXXXX/
+3. PostgreSQL Backup:
+   - Scan instance/*.conf for database names
+   - For each database: sudo -u postgres pg_dump > database.sql
+   - Backup globals: sudo -u postgres pg_dumpall -g > globals.sql
+4. Neo4j Backup:
+   - Check if any service uses Neo4j
+   - For each database: sudo neo4j-admin database dump neo4j --to-path=...
+5. Keycloak Backup:
+   - Find Keycloak directory (../keycloak-*)
+   - Create tar archive: tar --exclude=*.log -czf keycloak.tar.gz
+6. Create ZIP Archive:
+   - Zip temp directory contents
+   - Move to /tmp with timestamp
+   - Change ownership to SUDO_USER
+7. Cleanup temp directory
+```
+
+### Restore Flow
+
+```
+1. User runs: sudo python3 restore.py backup.zip
+2. Extract ZIP to temp directory: /tmp/hivematrix_restore_XXXXXX/
+3. Set permissions (755 dirs, 644 files) for postgres user access
+4. PostgreSQL Restore:
+   - Restore globals first: sudo -u postgres psql < globals.sql
+   - For each database:
+     - Drop if exists: sudo -u postgres dropdb database
+     - Create: sudo -u postgres createdb database
+     - Restore: sudo -u postgres psql -d database < database.sql
+5. Neo4j Restore:
+   - For each .dump file:
+     - sudo neo4j-admin database load neo4j --from-path=... --overwrite-destination=true
+6. Keycloak Restore:
+   - Extract tar archive to ../keycloak-*/
+   - Fix ownership: chown -R user:group
+   - Fix permissions: chmod +x bin/*.sh
+7. Cleanup temp directory
+```
+
+### Best Practices
+
+1. **Regular Backups** - Schedule daily backups with cron
+2. **Stop Neo4j** - Always stop Neo4j before backup/restore
+3. **Test Restores** - Periodically test restore process on development system
+4. **Off-site Storage** - Copy backups to remote location
+5. **Backup Before Updates** - Always backup before updating HiveMatrix or dependencies
+
+### Troubleshooting
+
+**"Neo4j backup failed"**
+- Make sure Neo4j is stopped: `sudo systemctl stop neo4j`
+- Check Neo4j is installed: `which neo4j-admin`
+
+**"Permission denied" on PostgreSQL**
+- Make sure running with sudo
+- Check postgres user exists: `id postgres`
+
+**"Keycloak won't start after restore"**
+- Check ownership: `ls -la ../keycloak-*/`
+- Check bin scripts are executable: `ls -la ../keycloak-*/bin/`
+- Fix manually if needed: `sudo chown -R $USER:$USER ../keycloak-*/ && chmod +x ../keycloak-*/bin/*.sh`
+
+**"Data didn't come back after restore"**
+- For Neo4j: Make sure you stopped Neo4j before backup AND before restore
+- For PostgreSQL: Check the backup.zip contains .sql files in postgresql/ directory
+- For Keycloak: Check the backup.zip contains keycloak/keycloak.tar.gz
+
+## 10. Development & Debugging Tools
 
 HiveMatrix includes CLI tools in the `hivematrix-helm` repository to streamline development and debugging workflows. These tools eliminate the need to manually navigate web interfaces or query databases during development.
 
@@ -1459,7 +1605,7 @@ conn.close()
 # TODO: Add log rotation/cleanup tool
 ```
 
-## 10. Security Architecture
+## 11. Security Architecture
 
 HiveMatrix follows a **zero-trust internal network model** where only the Nexus gateway should be accessible externally. All other services operate on localhost and are accessed through the Nexus proxy.
 
@@ -1588,7 +1734,7 @@ Additional security measures for production:
 
 See `SECURITY.md` for detailed security configuration and best practices.
 
-## 10. Design System & BEM Classes
+## 12. Design System & BEM Classes
 
 _(This section will be expanded with more components as they are built.)_
 
@@ -1615,7 +1761,7 @@ _(This section will be expanded with more components as they are built.)_
 -   **Label:** Standard `label` element
 -   Styling is provided globally by Nexus
 
-## 11. Database Best Practices
+## 13. Database Best Practices
 
 ### Configuration Storage
 
@@ -1641,7 +1787,7 @@ _(This section will be expanded with more components as they are built.)_
 - Use `db.relationship()` with `back_populates` for bidirectional relationships
 - Add `cascade="all, delete-orphan"` for proper cleanup
 
-## 12. External System Integration
+## 14. External System Integration
 
 ### Sync Scripts
 
@@ -1659,7 +1805,7 @@ Services that integrate with external systems (like Codex with Freshservice and 
 - Never hardcode credentials
 - Provide interactive setup via `init_db.py`
 
-## 13. Common Patterns
+## 15. Common Patterns
 
 ### Service Directory Structure
 
@@ -1779,7 +1925,7 @@ This will automatically create entries in both `master_services.json` and `servi
 
 **Important:** Always use `apps_registry.json` as the source of truth and let `install_manager.py update-config` generate the other files. Manual edits to `services.json` or `master_services.json` will be overwritten on the next config update.
 
-## 14. Brainhair AI Assistant & Approval Flow
+## 16. Brainhair AI Assistant & Approval Flow
 
 **Brainhair** is the AI assistant service that enables natural language interaction with the HiveMatrix platform. It provides Claude AI integration for performing administrative tasks, answering questions, and managing system operations.
 
@@ -2178,7 +2324,7 @@ Check for approval files:
 ls -la /tmp/brainhair_approval_*
 ```
 
-## 15. Version History
+## 17. Version History
 
 - **4.0** - **Brainhair AI Assistant & Approval Flow**: Added comprehensive documentation for Brainhair AI assistant service including AI tools pattern, approval flow for write operations, file-based IPC mechanism, browser integration, PHI/CJIS filtering with Microsoft Presidio, security considerations, and debugging guides. All write operations in AI tools (update_billing.py, set_company_plan.py, manage_network_equipment.py, update_features.py) now require explicit user approval before execution via approval_helper.py. Automatic PHI filtering protects sensitive information in tool responses using Presidio entity detection and anonymization.
 
