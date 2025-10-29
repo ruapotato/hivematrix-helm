@@ -80,11 +80,11 @@ echo ""
 echo -e "${CYAN}Cleaning up any remaining processes...${NC}"
 
 # Find all HiveMatrix processes by path
-PIDS=$(ps aux | grep -E "hivematrix-(core|nexus|helm|brainhair|codex|knowledgetree|ledger)" | grep -v grep | awk '{print $2}')
+PIDS=$(ps aux | grep -E "hivematrix-(core|nexus|helm|brainhair|codex|knowledgetree|ledger|archive)" | grep -v grep | awk '{print $2}')
 
 if [ -n "$PIDS" ]; then
     echo -e "${YELLOW}Found lingering processes:${NC}"
-    ps aux | grep -E "hivematrix-(core|nexus|helm|brainhair|codex|knowledgetree|ledger)" | grep -v grep | awk '{print "  PID " $2 ": " $11}'
+    ps aux | grep -E "hivematrix-(core|nexus|helm|brainhair|codex|knowledgetree|ledger|archive)" | grep -v grep | awk '{print "  PID " $2 ": " $11}'
     echo ""
 
     for pid in $PIDS; do
