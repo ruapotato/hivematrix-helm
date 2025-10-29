@@ -816,9 +816,16 @@ if [ ${#ADDITIONAL_SERVICES[@]} -gt 0 ]; then
     for svc in "${ADDITIONAL_SERVICES[@]}"; do
         echo -e "${YELLOW}Starting $svc...${NC}"
 
-        # Capture both stdout and stderr
-        START_OUTPUT=$(python cli.py start $svc 2>&1)
-        START_EXIT_CODE=$?
+        # Check if service is already running - restart instead to reload config
+        if python cli.py status $svc 2>&1 | grep -q "Status: running"; then
+            echo "  Service already running - restarting to reload configuration..."
+            START_OUTPUT=$(python cli.py restart $svc 2>&1)
+            START_EXIT_CODE=$?
+        else
+            # Capture both stdout and stderr
+            START_OUTPUT=$(python cli.py start $svc 2>&1)
+            START_EXIT_CODE=$?
+        fi
 
         if [ $START_EXIT_CODE -eq 0 ]; then
             # Success - show the output
@@ -833,7 +840,7 @@ if [ ${#ADDITIONAL_SERVICES[@]} -gt 0 ]; then
             if echo "$START_OUTPUT" | grep -q "not found in configuration"; then
                 echo -e "${YELLOW}  → Service not in services.json - add it to master_services.json and services.json${NC}"
             elif echo "$START_OUTPUT" | grep -q "already running"; then
-                echo -e "${YELLOW}  → Service already running${NC}"
+                echo -e "${YELLOW}  → Service already running (this shouldn't happen after restart)${NC}"
             elif echo "$START_OUTPUT" | grep -q "directory not found"; then
                 echo -e "${YELLOW}  → Service directory missing - run install.sh in hivematrix-$svc${NC}"
             elif echo "$START_OUTPUT" | grep -q "Python executable not found"; then
