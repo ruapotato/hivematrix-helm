@@ -122,6 +122,41 @@ class HiveMatrixRestore:
             shutil.copytree(core_keys_src, core_keys_dest)
             print(f"  ✓ Restored Core JWT keys")
 
+        # Restore service config files
+        service_configs_src = config_dir / "service_configs"
+        if service_configs_src.exists():
+            # Load services.json to find where to restore each config
+            services_file = SCRIPT_DIR / "services.json"
+            if services_file.exists():
+                with open(services_file) as f:
+                    services = json.load(f)
+
+                restored_count = 0
+                for config_file in service_configs_src.glob("*.conf"):
+                    service_name = config_file.stem  # e.g., "helm" from "helm.conf"
+
+                    if service_name in services:
+                        service_info = services[service_name]
+                        svc_path = service_info.get("path", "")
+
+                        # Resolve service path
+                        if svc_path.startswith("../"):
+                            service_path = (SCRIPT_DIR / svc_path).resolve()
+                        elif svc_path == ".":
+                            service_path = SCRIPT_DIR
+                        else:
+                            service_path = Path(svc_path).resolve()
+
+                        dest_dir = service_path / "instance"
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                        dest_file = dest_dir / config_file.name
+
+                        shutil.copy2(config_file, dest_file)
+                        restored_count += 1
+
+                if restored_count > 0:
+                    print(f"  ✓ Restored {restored_count} service config files")
+
         # Remind user to regenerate auto-generated files
         print(f"\n  → After restore, regenerate service configs with:")
         print(f"     cd {SCRIPT_DIR}")
@@ -151,10 +186,60 @@ class HiveMatrixRestore:
         pg_port = pg_config.get("port", 5432)
         pg_user = pg_config.get("admin_user", "postgres")
 
-        # Skip restoring global objects (roles) to preserve local passwords
-        # The roles should already exist in the target environment
-        print("  Skipping PostgreSQL global objects (roles already exist in target environment)")
-        print("    Note: Database roles and passwords are NOT overwritten - using existing local credentials")
+        # Restore database credentials from service configs
+        credentials_file = pg_backup_dir / "db_credentials.json"
+        if credentials_file.exists():
+            print("  Restoring PostgreSQL database users from backed-up credentials")
+            try:
+                with open(credentials_file) as f:
+                    db_credentials = json.load(f)
+
+                for db_name, creds in db_credentials.items():
+                    username = creds.get('user')
+                    password = creds.get('password')
+
+                    if not username or not password:
+                        continue
+
+                    try:
+                        # Create or update the user with the password
+                        # Using DO block to create if not exists, then set password
+                        sql = f"""
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{username}') THEN
+        CREATE ROLE {username} WITH LOGIN;
+    END IF;
+END
+$$;
+ALTER ROLE {username} WITH PASSWORD '{password}';
+"""
+                        # Write to temp file to avoid shell escaping issues
+                        temp_sql = self.temp_dir / f"restore_user_{username}.sql"
+                        with open(temp_sql, 'w') as f:
+                            f.write(sql)
+                        os.chmod(temp_sql, 0o644)
+
+                        # Execute SQL
+                        if os.geteuid() == 0:
+                            cmd = ["sudo", "-u", "postgres", "psql", "-f", str(temp_sql)]
+                        else:
+                            cmd = ["psql", "-h", pg_host, "-p", str(pg_port), "-U", pg_user, "-f", str(temp_sql)]
+
+                        subprocess.run(cmd, check=True, capture_output=True, text=True)
+                        temp_sql.unlink()
+
+                        print(f"    ✓ Restored user {username} for database {db_name}")
+                    except subprocess.CalledProcessError as e:
+                        print(f"    Warning: Could not restore user {username}: {e.stderr[:200]}")
+                    except Exception as e:
+                        print(f"    Warning: Error restoring user {username}: {e}")
+
+                print(f"    ✓ Restored {len(db_credentials)} database users")
+            except Exception as e:
+                print(f"    Warning: Error restoring database credentials: {e}")
+        else:
+            print("  No database credentials found in backup")
 
         # Restore each database
         for sql_file in pg_backup_dir.glob("*.sql"):

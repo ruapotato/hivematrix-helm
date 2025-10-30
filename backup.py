@@ -210,69 +210,17 @@ class HiveMatrixBackup:
             except subprocess.CalledProcessError as e:
                 print(f"    ✗ Failed to backup {db_name}: {e.stderr}")
 
-        # Also backup global objects (roles, tablespaces)
-        print("  Backing up PostgreSQL global objects (roles, tablespaces)")
-        globals_file = pg_backup_dir / "globals.sql"
-
-        # For globals, use sudo -u postgres to run as postgres user with peer auth
-        admin_user = self.pg_config.get("admin_user", "postgres")
+        # Backup database credentials from service configs
+        print("  Backing up database credentials from service configs")
+        credentials_file = pg_backup_dir / "db_credentials.json"
 
         try:
-            # If running as root, use sudo -u postgres for peer authentication
-            if os.geteuid() == 0:
-                cmd = [
-                    "sudo", "-u", admin_user,
-                    "pg_dumpall",
-                    "-g",  # Globals only
-                    "-f", str(globals_file)
-                ]
-            else:
-                # Not running as root - skip globals (would need password)
-                print(f"    ⊘ Skipping globals (not running as root)")
-                return
+            with open(credentials_file, 'w') as f:
+                json.dump(db_info, f, indent=2)
 
-            env = os.environ.copy()
-            subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
-            print(f"    ✓ Backed up global objects ({globals_file.stat().st_size} bytes)")
-        except subprocess.CalledProcessError as e:
-            print(f"    ✗ Failed to backup globals: {e.stderr}")
-
-        # Backup role passwords (pg_dumpall doesn't preserve plaintext passwords)
-        print("  Backing up PostgreSQL role passwords")
-        passwords_file = pg_backup_dir / "role_passwords.json"
-
-        try:
-            # Query to get role names and password hashes
-            if os.geteuid() == 0:
-                cmd = [
-                    "sudo", "-u", admin_user,
-                    "psql",
-                    "-t",  # Tuples only
-                    "-A",  # Unaligned output
-                    "-F", "|",  # Field separator
-                    "-c", "SELECT rolname, rolpassword FROM pg_authid WHERE rolpassword IS NOT NULL;"
-                ]
-            else:
-                print(f"    ⊘ Skipping role passwords (not running as root)")
-                return
-
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
-
-            # Parse output and save as JSON
-            role_passwords = {}
-            for line in result.stdout.strip().split('\n'):
-                if line and '|' in line:
-                    rolname, rolpassword = line.split('|', 1)
-                    role_passwords[rolname.strip()] = rolpassword.strip()
-
-            with open(passwords_file, 'w') as f:
-                json.dump(role_passwords, f, indent=2)
-
-            print(f"    ✓ Backed up passwords for {len(role_passwords)} roles ({passwords_file.stat().st_size} bytes)")
-        except subprocess.CalledProcessError as e:
-            print(f"    ✗ Failed to backup role passwords: {e.stderr}")
+            print(f"    ✓ Backed up credentials for {len(db_info)} database users ({credentials_file.stat().st_size} bytes)")
         except Exception as e:
-            print(f"    ✗ Failed to save role passwords: {e}")
+            print(f"    ✗ Failed to save credentials: {e}")
 
     def backup_neo4j_databases(self):
         """Backup Neo4j databases using neo4j-admin dump."""
@@ -476,6 +424,34 @@ class HiveMatrixBackup:
             dest_keys_dir = config_backup_dir / "core_keys"
             shutil.copytree(core_keys_dir, dest_keys_dir, dirs_exist_ok=True)
             print(f"  ✓ Backed up Core JWT keys")
+
+        # Backup service config files (contain database passwords)
+        service_configs_dir = config_backup_dir / "service_configs"
+        service_configs_dir.mkdir(parents=True, exist_ok=True)
+        backed_up_count = 0
+
+        for service_name, service_info in self.services.items():
+            if service_name == "keycloak":
+                continue
+
+            # Resolve service path
+            svc_path = service_info.get("path", "")
+            if svc_path.startswith("../"):
+                service_path = (SCRIPT_DIR / svc_path).resolve()
+            elif svc_path == ".":
+                service_path = SCRIPT_DIR
+            else:
+                service_path = Path(svc_path).resolve()
+
+            config_file = service_path / "instance" / f"{service_name}.conf"
+
+            if config_file.exists():
+                dest_file = service_configs_dir / f"{service_name}.conf"
+                shutil.copy2(config_file, dest_file)
+                backed_up_count += 1
+
+        if backed_up_count > 0:
+            print(f"  ✓ Backed up {backed_up_count} service config files")
 
     def create_backup_archive(self):
         """Create final zip archive."""
