@@ -151,81 +151,10 @@ class HiveMatrixRestore:
         pg_port = pg_config.get("port", 5432)
         pg_user = pg_config.get("admin_user", "postgres")
 
-        # Restore global objects first
-        globals_file = pg_backup_dir / "globals.sql"
-        if globals_file.exists():
-            print("  Restoring PostgreSQL global objects (roles, tablespaces)")
-            try:
-                # Use sudo -u postgres for peer authentication
-                if os.geteuid() == 0:
-                    cmd = [
-                        "sudo", "-u", "postgres",
-                        "psql",
-                        "-f", str(globals_file),
-                        "postgres"
-                    ]
-                else:
-                    cmd = [
-                        "psql",
-                        "-h", pg_host,
-                        "-p", str(pg_port),
-                        "-U", pg_user,
-                        "-f", str(globals_file),
-                        "postgres"
-                    ]
-
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
-                print(f"    ✓ Restored global objects")
-            except subprocess.CalledProcessError as e:
-                print(f"    Warning: Error restoring globals (may already exist): {e.stderr[:200]}")
-
-        # Restore role passwords
-        passwords_file = pg_backup_dir / "role_passwords.json"
-        if passwords_file.exists():
-            print("  Restoring PostgreSQL role passwords")
-            try:
-                with open(passwords_file) as f:
-                    role_passwords = json.load(f)
-
-                for rolname, password_hash in role_passwords.items():
-                    try:
-                        # Create a temporary SQL file to avoid shell escaping issues with $
-                        temp_sql = self.temp_dir / f"restore_password_{rolname}.sql"
-                        with open(temp_sql, 'w') as f:
-                            # Write SQL directly to file to avoid shell interpretation
-                            f.write(f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';\n")
-
-                        # Make file readable by postgres user
-                        os.chmod(temp_sql, 0o644)
-
-                        # Use sudo -u postgres for peer authentication
-                        if os.geteuid() == 0:
-                            cmd = [
-                                "sudo", "-u", "postgres",
-                                "psql",
-                                "-f", str(temp_sql)
-                            ]
-                        else:
-                            cmd = [
-                                "psql",
-                                "-h", pg_host,
-                                "-p", str(pg_port),
-                                "-U", pg_user,
-                                "-f", str(temp_sql)
-                            ]
-
-                        subprocess.run(cmd, check=True, capture_output=True, text=True)
-
-                        # Clean up temp SQL file
-                        temp_sql.unlink()
-                    except subprocess.CalledProcessError as e:
-                        print(f"    Warning: Could not restore password for {rolname}: {e.stderr[:200]}")
-                    except Exception as e:
-                        print(f"    Warning: Error restoring password for {rolname}: {e}")
-
-                print(f"    ✓ Restored passwords for {len(role_passwords)} roles")
-            except Exception as e:
-                print(f"    Warning: Error restoring role passwords: {e}")
+        # Skip restoring global objects (roles) to preserve local passwords
+        # The roles should already exist in the target environment
+        print("  Skipping PostgreSQL global objects (roles already exist in target environment)")
+        print("    Note: Database roles and passwords are NOT overwritten - using existing local credentials")
 
         # Restore each database
         for sql_file in pg_backup_dir.glob("*.sql"):
