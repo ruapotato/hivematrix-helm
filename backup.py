@@ -137,15 +137,21 @@ class HiveMatrixBackup:
                 config = configparser.RawConfigParser()  # Use RawConfigParser to handle special chars like %
                 try:
                     config.read(config_file)
+
+                    # Try different variations of database name config
+                    db_name = None
                     if config.has_option("database", "db_name"):
                         db_name = config.get("database", "db_name")
+                    elif config.has_option("database_credentials", "db_dbname"):
+                        db_name = config.get("database_credentials", "db_dbname")
 
+                    if db_name:
                         # Extract credentials from connection string
                         if config.has_option("database", "connection_string"):
                             conn_str = config.get("database", "connection_string")
-                            # Parse postgresql://user:password@host:port/dbname
+                            # Parse postgresql://user:password@host:port/dbname or postgresql+psycopg://...
                             import re
-                            match = re.match(r'postgresql://([^:]+):([^@]+)@', conn_str)
+                            match = re.match(r'postgresql(?:\+\w+)?://([^:]+):([^@]+)@', conn_str)
                             if match:
                                 db_user = match.group(1)
                                 db_password = match.group(2)
