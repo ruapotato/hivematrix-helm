@@ -189,13 +189,21 @@ class HiveMatrixRestore:
 
                 for rolname, password_hash in role_passwords.items():
                     try:
+                        # Create a temporary SQL file to avoid shell escaping issues with $
+                        temp_sql = self.temp_dir / f"restore_password_{rolname}.sql"
+                        with open(temp_sql, 'w') as f:
+                            # Write SQL directly to file to avoid shell interpretation
+                            f.write(f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';\n")
+
+                        # Make file readable by postgres user
+                        os.chmod(temp_sql, 0o644)
+
                         # Use sudo -u postgres for peer authentication
-                        # Update pg_authid directly to set the pre-hashed password
                         if os.geteuid() == 0:
                             cmd = [
                                 "sudo", "-u", "postgres",
                                 "psql",
-                                "-c", f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';"
+                                "-f", str(temp_sql)
                             ]
                         else:
                             cmd = [
@@ -203,12 +211,17 @@ class HiveMatrixRestore:
                                 "-h", pg_host,
                                 "-p", str(pg_port),
                                 "-U", pg_user,
-                                "-c", f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';"
+                                "-f", str(temp_sql)
                             ]
 
                         subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+                        # Clean up temp SQL file
+                        temp_sql.unlink()
                     except subprocess.CalledProcessError as e:
                         print(f"    Warning: Could not restore password for {rolname}: {e.stderr[:200]}")
+                    except Exception as e:
+                        print(f"    Warning: Error restoring password for {rolname}: {e}")
 
                 print(f"    ✓ Restored passwords for {len(role_passwords)} roles")
             except Exception as e:
