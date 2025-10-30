@@ -571,7 +571,7 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
             sys.exit(1)
 
     def update_hostname_if_changed(self):
-        """Check if hostname changed and update master_config.json to trigger Keycloak reconfiguration."""
+        """Check if hostname changed and automatically reconfigure Keycloak."""
         print("\n=== Checking hostname ===")
 
         master_config_file = SCRIPT_DIR / "instance" / "configs" / "master_config.json"
@@ -606,7 +606,35 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
                     json.dump(config, f, indent=2)
 
                 print(f"  ✓ Updated master_config.json with new hostname")
-                print(f"  Note: start.sh will detect this and prompt for Keycloak reconfiguration")
+
+                # Automatically run Keycloak configuration
+                print(f"\n=== Reconfiguring Keycloak for new hostname ===")
+                configure_script = SCRIPT_DIR / "configure_keycloak.sh"
+                if configure_script.exists():
+                    try:
+                        # Run configure_keycloak.sh with the new IP
+                        env = os.environ.copy()
+                        env['KEYCLOAK_HOSTNAME'] = current_ip
+
+                        result = subprocess.run(
+                            ["bash", str(configure_script)],
+                            cwd=str(SCRIPT_DIR),
+                            env=env,
+                            capture_output=False,  # Show output to user
+                            text=True
+                        )
+
+                        if result.returncode == 0:
+                            print(f"  ✓ Keycloak reconfigured successfully")
+                        else:
+                            print(f"  ✗ Keycloak reconfiguration failed")
+                            print(f"  Please run manually: ./configure_keycloak.sh")
+                    except Exception as e:
+                        print(f"  Warning: Could not run configure_keycloak.sh: {e}")
+                        print(f"  Please run manually: ./configure_keycloak.sh")
+                else:
+                    print(f"  Warning: configure_keycloak.sh not found")
+                    print(f"  Please run manually if needed")
             else:
                 print(f"  Hostname unchanged: {current_ip}")
 
@@ -668,10 +696,10 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
             print("  1. Start services:")
             print("     ./start.sh")
             print()
-            print("  2. After services start, Keycloak will be automatically")
-            print("     reconfigured for the new hostname")
+            print("  2. Verify data integrity and test login")
             print()
-            print("  3. Verify data integrity and test login")
+            print("Note: If hostname changed, Keycloak was automatically reconfigured.")
+            print("      Services will need to be restarted to pick up new credentials.")
             print()
 
         except KeyboardInterrupt:
