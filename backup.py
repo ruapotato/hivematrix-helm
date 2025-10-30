@@ -237,6 +237,43 @@ class HiveMatrixBackup:
         except subprocess.CalledProcessError as e:
             print(f"    ✗ Failed to backup globals: {e.stderr}")
 
+        # Backup role passwords (pg_dumpall doesn't preserve plaintext passwords)
+        print("  Backing up PostgreSQL role passwords")
+        passwords_file = pg_backup_dir / "role_passwords.json"
+
+        try:
+            # Query to get role names and password hashes
+            if os.geteuid() == 0:
+                cmd = [
+                    "sudo", "-u", admin_user,
+                    "psql",
+                    "-t",  # Tuples only
+                    "-A",  # Unaligned output
+                    "-F", "|",  # Field separator
+                    "-c", "SELECT rolname, rolpassword FROM pg_authid WHERE rolpassword IS NOT NULL;"
+                ]
+            else:
+                print(f"    ⊘ Skipping role passwords (not running as root)")
+                return
+
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+
+            # Parse output and save as JSON
+            role_passwords = {}
+            for line in result.stdout.strip().split('\n'):
+                if line and '|' in line:
+                    rolname, rolpassword = line.split('|', 1)
+                    role_passwords[rolname.strip()] = rolpassword.strip()
+
+            with open(passwords_file, 'w') as f:
+                json.dump(role_passwords, f, indent=2)
+
+            print(f"    ✓ Backed up passwords for {len(role_passwords)} roles ({passwords_file.stat().st_size} bytes)")
+        except subprocess.CalledProcessError as e:
+            print(f"    ✗ Failed to backup role passwords: {e.stderr}")
+        except Exception as e:
+            print(f"    ✗ Failed to save role passwords: {e}")
+
     def backup_neo4j_databases(self):
         """Backup Neo4j databases using neo4j-admin dump."""
         print("\n=== Backing up Neo4j databases ===")

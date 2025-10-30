@@ -179,6 +179,41 @@ class HiveMatrixRestore:
             except subprocess.CalledProcessError as e:
                 print(f"    Warning: Error restoring globals (may already exist): {e.stderr[:200]}")
 
+        # Restore role passwords
+        passwords_file = pg_backup_dir / "role_passwords.json"
+        if passwords_file.exists():
+            print("  Restoring PostgreSQL role passwords")
+            try:
+                with open(passwords_file) as f:
+                    role_passwords = json.load(f)
+
+                for rolname, password_hash in role_passwords.items():
+                    try:
+                        # Use sudo -u postgres for peer authentication
+                        # Update pg_authid directly to set the pre-hashed password
+                        if os.geteuid() == 0:
+                            cmd = [
+                                "sudo", "-u", "postgres",
+                                "psql",
+                                "-c", f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';"
+                            ]
+                        else:
+                            cmd = [
+                                "psql",
+                                "-h", pg_host,
+                                "-p", str(pg_port),
+                                "-U", pg_user,
+                                "-c", f"UPDATE pg_authid SET rolpassword = '{password_hash}' WHERE rolname = '{rolname}';"
+                            ]
+
+                        subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    except subprocess.CalledProcessError as e:
+                        print(f"    Warning: Could not restore password for {rolname}: {e.stderr[:200]}")
+
+                print(f"    ✓ Restored passwords for {len(role_passwords)} roles")
+            except Exception as e:
+                print(f"    Warning: Error restoring role passwords: {e}")
+
         # Restore each database
         for sql_file in pg_backup_dir.glob("*.sql"):
             if sql_file.name == "globals.sql":
