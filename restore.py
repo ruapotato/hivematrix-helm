@@ -570,6 +570,49 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
             print("\n  ERROR: Backup appears to be empty or invalid")
             sys.exit(1)
 
+    def update_hostname_if_changed(self):
+        """Check if hostname changed and update master_config.json to trigger Keycloak reconfiguration."""
+        print("\n=== Checking hostname ===")
+
+        master_config_file = SCRIPT_DIR / "instance" / "configs" / "master_config.json"
+        if not master_config_file.exists():
+            print("  No master config found")
+            return
+
+        try:
+            # Get current hostname
+            result = subprocess.run(["hostname", "-I"], capture_output=True, text=True)
+            current_ip = result.stdout.strip().split()[0] if result.stdout.strip() else None
+
+            if not current_ip:
+                print("  Could not detect current IP address")
+                return
+
+            # Read master config
+            with open(master_config_file) as f:
+                config = json.load(f)
+
+            old_hostname = config.get("system", {}).get("hostname", "")
+
+            if old_hostname and old_hostname != current_ip:
+                print(f"  Hostname changed: {old_hostname} → {current_ip}")
+
+                # Update hostname in config
+                if "system" not in config:
+                    config["system"] = {}
+                config["system"]["hostname"] = current_ip
+
+                with open(master_config_file, 'w') as f:
+                    json.dump(config, f, indent=2)
+
+                print(f"  ✓ Updated master_config.json with new hostname")
+                print(f"  Note: start.sh will detect this and prompt for Keycloak reconfiguration")
+            else:
+                print(f"  Hostname unchanged: {current_ip}")
+
+        except Exception as e:
+            print(f"  Warning: Could not check/update hostname: {e}")
+
     def run(self):
         """Execute restore process."""
         print("=" * 60)
@@ -615,6 +658,9 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
             if self.restore_all or self.options.keycloak_only:
                 self.restore_keycloak()
 
+            # Check if hostname changed and update master_config.json
+            self.update_hostname_if_changed()
+
             print("\n" + "=" * 60)
             print("✓ Restore completed!")
             print("=" * 60)
@@ -622,13 +668,10 @@ ALTER ROLE {username} WITH PASSWORD '{password}';
             print("  1. Start services:")
             print("     ./start.sh")
             print()
-            print("  2. Update Keycloak redirect URIs for new hostname (REQUIRED):")
-            print("     ./configure_keycloak.sh")
+            print("  2. After services start, Keycloak will be automatically")
+            print("     reconfigured for the new hostname")
             print()
             print("  3. Verify data integrity and test login")
-            print()
-            print("IMPORTANT: After restore, Keycloak redirect URIs must be updated")
-            print("           to match the new hostname. Run ./configure_keycloak.sh")
             print()
 
         except KeyboardInterrupt:
