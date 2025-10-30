@@ -29,6 +29,10 @@ fi
 # Activate virtual environment
 source pyenv/bin/activate
 
+# Regenerate service configuration files
+echo "Regenerating service configuration..."
+python install_manager.py update-config 2>&1 || echo "WARNING: Failed to update service config"
+
 # Start services using CLI
 echo "Starting Keycloak..."
 python cli.py start keycloak 2>&1 || echo "(already running)"
