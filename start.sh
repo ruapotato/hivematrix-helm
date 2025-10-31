@@ -652,7 +652,9 @@ if [ -n "$DETECTED_IP" ]; then
     HOSTNAME="$DETECTED_IP"
 
     # Update master config if IP has changed
+    IP_CHANGED=false
     if [ "$CONFIGURED_HOSTNAME" != "$HOSTNAME" ]; then
+        IP_CHANGED=true
         echo -e "${YELLOW}IP address changed from $CONFIGURED_HOSTNAME to $HOSTNAME${NC}"
         python3 <<EOF
 import json
@@ -664,7 +666,7 @@ with open('$MASTER_CONFIG', 'w') as f:
     json.dump(config, f, indent=2)
 EOF
         echo -e "${GREEN}✓ Updated hostname to: $HOSTNAME${NC}"
-        echo -e "${YELLOW}Note: Run ./configure_keycloak.sh to update Keycloak redirect URIs${NC}"
+        echo -e "${YELLOW}Note: Keycloak will be reconfigured after services start${NC}"
     fi
 else
     HOSTNAME="$CONFIGURED_HOSTNAME"
@@ -710,10 +712,57 @@ OUTPUT=$(python cli.py start keycloak 2>&1)
 EXIT_CODE=$?
 if echo "$OUTPUT" | grep -q "already running"; then
 echo -e "${BLUE}  ✓ Service already running${NC}"
+sleep 2  # Give Keycloak a moment to be ready
+
+# If IP changed and Keycloak was already running, reconfigure it
+if [ "$IP_CHANGED" = true ]; then
+    echo ""
+    echo "================================================================"
+    echo "  Reconfiguring Keycloak for New IP Address"
+    echo "================================================================"
+    echo ""
+    if [ -f "$SCRIPT_DIR/configure_keycloak.sh" ]; then
+        bash "$SCRIPT_DIR/configure_keycloak.sh"
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo -e "${GREEN}✓ Keycloak successfully reconfigured${NC}"
+        else
+            echo ""
+            echo -e "${YELLOW}⚠ Keycloak reconfiguration completed with warnings${NC}"
+            echo -e "${YELLOW}  You can manually run: ./configure_keycloak.sh${NC}"
+        fi
+    else
+        echo -e "${RED}✗ configure_keycloak.sh not found${NC}"
+    fi
+    echo ""
+fi
 elif [ $EXIT_CODE -eq 0 ] || echo "$OUTPUT" | grep -q "started"; then
 echo -e "${GREEN}✓ Keycloak started${NC}"
 echo "  Waiting for Keycloak to initialize..."
 sleep 5
+
+# If IP changed, automatically reconfigure Keycloak
+if [ "$IP_CHANGED" = true ]; then
+    echo ""
+    echo "================================================================"
+    echo "  Reconfiguring Keycloak for New IP Address"
+    echo "================================================================"
+    echo ""
+    if [ -f "$SCRIPT_DIR/configure_keycloak.sh" ]; then
+        bash "$SCRIPT_DIR/configure_keycloak.sh"
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo -e "${GREEN}✓ Keycloak successfully reconfigured${NC}"
+        else
+            echo ""
+            echo -e "${YELLOW}⚠ Keycloak reconfiguration completed with warnings${NC}"
+            echo -e "${YELLOW}  You can manually run: ./configure_keycloak.sh${NC}"
+        fi
+    else
+        echo -e "${RED}✗ configure_keycloak.sh not found${NC}"
+    fi
+    echo ""
+fi
 else
 echo -e "${RED}✗ Failed to start Keycloak${NC}"
 echo "$OUTPUT"
