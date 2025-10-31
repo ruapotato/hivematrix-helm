@@ -28,29 +28,23 @@
             </div>
         </div>
 
-        <!-- Loading State -->
         <div id="loading" class="loading" class="is-hidden">
             <p>Running security audit...</p>
         </div>
 
-        <!-- Audit Results -->
         <div id="audit-results" class="is-hidden">
-            <!-- Summary Card -->
             <div class="card u-mb-3">
                 <div class="card__header">
                     <h2 class="card__title">Security Status</h2>
                 </div>
                 <div class="card__body">
                     <div id="summary-content" class="u-text-center">
-                        <!-- Populated by JavaScript -->
                     </div>
                     <div id="firewall-status" class="u-mt-3">
-                        <!-- Populated by JavaScript -->
                     </div>
                 </div>
             </div>
 
-            <!-- Exposed Services (if any) -->
             <div id="exposed-section" class="is-hidden u-mb-3">
                 <div class="card u-mb-3">
                     <div class="card__header card__header--danger">
@@ -62,7 +56,6 @@
                             <p>The following services are listening on all network interfaces (0.0.0.0) and can be accessed from external networks. They should only be accessible on localhost (127.0.0.1).</p>
                         </div>
                         <ul id="exposed-list" class="service-list">
-                            <!-- Populated by JavaScript -->
                         </ul>
                         <div class="u-mt-2">
                             <h3>Immediate Actions Required:</h3>
@@ -76,7 +69,6 @@
                 </div>
             </div>
 
-            <!-- Firewall Protected Services -->
             <div id="firewall-protected-section" class="is-hidden">
                 <div class="card u-mb-3">
                     <div class="card__header card__header--success">
@@ -88,13 +80,11 @@
                             <p>These services are exposed on the network but external access is blocked by firewall rules.</p>
                         </div>
                         <ul id="firewall-protected-list" class="service-list">
-                            <!-- Populated by JavaScript -->
                         </ul>
                     </div>
                 </div>
             </div>
 
-            <!-- Firewall Required Services -->
             <div id="firewall-section-warn" class="is-hidden">
                 <div class="card u-mb-3">
                     <div class="card__header card__header--warning">
@@ -106,7 +96,6 @@
                             <p>These services (typically Java applications like Keycloak) can listen on 0.0.0.0, but external access MUST be blocked by firewall rules.</p>
                         </div>
                         <ul id="firewall-required-list" class="service-list">
-                            <!-- Populated by JavaScript -->
                         </ul>
                         <div class="u-mt-2">
                             <h3>Required Actions:</h3>
@@ -120,7 +109,6 @@
                 </div>
             </div>
 
-            <!-- Secure Services -->
             <div id="secure-section" class="is-hidden">
                 <div class="card u-mb-3">
                     <div class="card__header card__header--success">
@@ -129,13 +117,11 @@
                     <div class="card__body">
                         <p>These services are properly configured to listen only on localhost:</p>
                         <ul id="secure-list" class="service-list">
-                            <!-- Populated by JavaScript -->
                         </ul>
                     </div>
                 </div>
             </div>
 
-            <!-- Firewall Configuration -->
             <div id="firewall-section" class="card u-mb-3">
                 <div class="card__header">
                     <h2 class="card__title">Firewall Configuration</h2>
@@ -194,7 +180,6 @@ sudo ufw status
                 </div>
             </div>
 
-            <!-- Recommendations -->
             <div class="card">
                 <div class="card__header">
                     <h2 class="card__title">Security Recommendations</h2>
