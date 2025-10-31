@@ -32,22 +32,26 @@
             </div>
         </div>
 
-        <div class="log-type-selector u-mb-3">
-            <strong>View:</strong>
-            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=both&lines={{ lines }}'); return false;"
-               class="{% if log_type == 'both' %}active{% endif %}">Both</a>
-            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stdout&lines={{ lines }}'); return false;"
-               class="{% if log_type == 'stdout' %}active{% endif %}">Stdout</a>
-            <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stderr&lines={{ lines }}'); return false;"
-               class="{% if log_type == 'stderr' %}active{% endif %}">Stderr</a>
-            <span style="margin-left: auto;">
-                <button class="btn btn--small btn--primary" onclick="window.location.reload()">
-                    <span class="btn__label">
-                        <i data-lucide="refresh-cw" class="btn__icon"></i>
-                        Refresh
+        <div class="card u-mb-3">
+            <div class="card__body">
+                <div class="log-type-selector">
+                    <strong>View:</strong>
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=both&lines={{ lines }}'); return false;"
+                       class="{% if log_type == 'both' %}active{% endif %}">Both</a>
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stdout&lines={{ lines }}'); return false;"
+                       class="{% if log_type == 'stdout' %}active{% endif %}">Stdout</a>
+                    <a href="#" onclick="navigateTo('/service/{{ service_name }}/logs?type=stderr&lines={{ lines }}'); return false;"
+                       class="{% if log_type == 'stderr' %}active{% endif %}">Stderr</a>
+                    <span style="margin-left: auto;">
+                        <button class="btn btn--small btn--primary" onclick="window.location.reload()">
+                            <span class="btn__label">
+                                <i data-lucide="refresh-cw" class="btn__icon"></i>
+                                Refresh
+                            </span>
+                        </button>
                     </span>
-                </button>
-            </span>
+                </div>
+            </div>
         </div>
 
         {% if logs.get('stderr') and (log_type == 'stderr' or log_type == 'both') %}
